@@ -179,6 +179,66 @@ function getIdMp3() {
 }
 
 /**
+ * 下や右や左からも出すことができるトースト。
+ * @param {"ok"|"info"|"warning"|"error"} icon
+ * @param {string} text
+ * @param {"bottom"} side
+ */
+async function showToastSide(side, icon, text) {
+    const styles = `
+@keyframes slidein-bottom {from{bottom: -340px;}to{bottom:34px;}}
+@keyframes slideout-bottom{from{bottom: 34px;}to{bottom:-340px;}}
+@keyframes slidein-left {from{left: -340px;}to{left:34px;}}
+@keyframes slideout-left{from{left: 34px;}to{left:-340px;}}
+
+.toast-bottom,.toast-left{position: fixed;background: rgba(255, 255, 255, 0.9);backdrop-filter: blur(8px);padding: 10px;border-radius: 8px;text-align: center;font-family: Arial, sans-serif;z-index: 1000;}
+.toast-bottom{
+	bottom: -50px;
+	left: 50%;
+    width: 90vw;
+	transform: translateX(-50%);
+	animation: slidein-bottom 0.5s forwards, slideout-bottom 0.5s 8s forwards;
+}
+.toast-left{
+	left: -50px;
+	top: 50%;
+    width: 90vh;
+	transform: translateY(-50%) rotateZ(90deg) ;
+	animation: slidein-left 0.5s forwards, slideout-left 0.5s 8s forwards;
+}
+.toast-bottom p, .toast-bottom a,
+.toast-left p, .toast-left a
+{
+    color: #111;
+    font-weight: bold;
+    line-height: normal;
+}
+    `;
+    if (!document.querySelector("style#toast-side-style")) {
+        const style = document.createElement("style");
+        style.innerHTML = styles;
+        style.id = "toast-side-style";
+        document.body.appendChild(style);
+    }
+    try {
+        const response = await fetch(
+            `/api/html/toast?icon=${encodeURIComponent(
+                icon
+            )}&text=${encodeURIComponent(text)}`
+        );
+        if (!response.ok) throw new Error("Failed to fetch toast(side-mode)");
+
+        const data = await response.json();
+        const toastHTML = stringToHTML(data.toast);
+        toastHTML.className = `toast-${side}`;
+        const toastContainerEle = document.getElementById("toast-container");
+        toastContainerEle.appendChild(toastHTML);
+    } catch (error) {
+        console.error("Error showing toast(side-mode):", error);
+    }
+}
+
+/**
  * 曲の音声の再生停止を行う。
  * Youtube Embedからの再生停止も可能。
  */
@@ -269,8 +329,8 @@ class SpecialSong extends EventTarget {
     /**
      * @param {number} bpm
      * @param {SongAudio} songAudio
-     * @param {ScrollController} scrollController
-     * @param {LyricShower} lyricShower
+     * @param {ScrollController?} scrollController
+     * @param {LyricShower?} lyricShower
      */
     constructor(bpm, meter, songAudio, scrollController, lyricShower) {
         super();
@@ -278,9 +338,9 @@ class SpecialSong extends EventTarget {
         this.bpm = bpm;
         /**@type {SongAudio} */
         this.audio = songAudio;
-        /**@type {ScrollController} */
+        /**@type {ScrollController?} */
         this.scroll = scrollController;
-        /**@type {LyricShower} */
+        /**@type {LyricShower?} */
         this.lyric = lyricShower;
         /**@type {number} */
         this.measureCount = 0;
@@ -314,20 +374,23 @@ class SpecialSong extends EventTarget {
             throw new Error("This Song is not ready now");
         this.playing = true;
         this.audio.play();
-        this.lyric.apply();
+        //TODO: SSongからlyricとscrollの項目を外し個別制御にする
+        if (!!this.lyric) this.lyric.apply();
         if (this.waitTime > 0)
             await new Promise((r) =>
                 setTimeout(() => r(), this.waitTime * 1000)
             );
-        this.scroll.start();
+        if (!!this.scroll) {
+            this.scroll.start();
+            this.scroll.addEventListener("endScroll", (ev) => {
+                this.stop(ev.detail.fulfilled);
+            });
+        }
         this.dispatchEvent(new CustomEvent("started", { detail: this }));
-        this.scroll.addEventListener("endScroll", (ev) => {
-            this.stop(ev.detail.fulfilled);
-        });
     }
     stop(_fulfilled = false) {
         this.audio.stop();
-        this.scroll.stop();
+        if (!!this.scroll) this.scroll.stop();
         this.dispatchEvent(
             new CustomEvent("stoped", { detail: this, fulfilled: _fulfilled })
         );
@@ -503,5 +566,47 @@ class LyricHider {
     show() {
         this.areas[this.count].style.color = "#fff";
         this.count++;
+    }
+}
+class ReductionLyric {
+    constructor(speed = 8, startFontSize = 1800, endFontSize = 20) {
+        this.speed = speed;
+        /**@type {HTMLStyleElement} */
+        this.style = document.createElement("style");
+        this.style.innerHTML = `
+        @keyframes small {
+            0% {
+                font-size: ${startFontSize}px;
+            }
+            95% {
+                opacity: 1;
+            }
+            100% {
+                font-size: ${endFontSize}px;
+                opacity: 0;
+            }
+        }
+
+        .small_animation {
+            animation: small ${speed}s cubic-bezier(0,1.09,.5,.95); forwards;
+            position: fixed;
+            z-index: 10;
+            color: white;
+            display: inline;
+            text-align: center;
+            transform: translate(-50%, -60%);
+            top: 50%;
+            left: 50%;
+            white-space: nowrap;
+        }
+        `;
+        document.body.appendChild(this.style);
+    }
+    show(lyric) {
+        const div = document.createElement("div");
+        div.className = "small_animation";
+        div.innerText = lyric;
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), this.speed * 1000 - 50);
     }
 }
