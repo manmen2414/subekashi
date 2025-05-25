@@ -29,6 +29,7 @@ const lyric = `誰もそこにいない事、^16
 我々を操り始めたのです。^16`;
 const KENBANS = [
     "232153355351332142635200136062250566544303116634466216204110014 232153355351332142635200136062250566544303116634466216204110014 ",
+    "2321514005545125663454514104323440224656205114414455603232032003 2321514005545125663454514104323440224656205114414455603232032003 2321514005545125663454514104323440224656205114414455603232032003 1065514330232626135611044153540322112113350646406    0  0  6    ",
 ];
 const wait = (n) => new Promise((r) => setTimeout(() => r(), n * 1000));
 class Kenban {
@@ -46,9 +47,10 @@ class Kenban {
     }
     async play() {
         this.playing = true;
+        this.index = 0;
         for (let i = 0; i < this.note.length; i++) {
             this.playNote();
-            await wait(this.waitSecond - 0.008);
+            await wait(this.waitSecond - 0.012);
         }
         this.playing = false;
         return true;
@@ -126,11 +128,16 @@ async function special() {
         await wait(25.5);
         console.log("開始");
         showLyric(reductionLyric);
-        await specialsong.waitPerMeadow(52.0);
+        await specialsong.waitPerMeadow(52.25);
         console.log("鍵盤１回目");
         playKenban(kenban, KENBANS[0]);
         await specialsong.waitPerMeter(73);
         console.log("2番");
+        await specialsong.waitPerMeadow(50.75);
+        console.log("鍵盤２回目");
+        playKenban(kenban, KENBANS[1]);
+        await specialsong.waitPerMeadow(32);
+        console.log("おわり");
     });
 }
 /**
