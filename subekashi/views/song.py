@@ -24,6 +24,15 @@ def song(request, song_id):
             }
         )
     
+    # 改行の設定
+    br_lyrics = request.COOKIES.get("brlyrics", "normal")
+    if br_lyrics == "normal":
+        br_cleaned_lyrics = song.lyrics
+    elif br_lyrics == "pack":
+        br_cleaned_lyrics = re.sub(r"\n+", "\n", song.lyrics)
+    elif br_lyrics == "brless":
+        br_cleaned_lyrics = song.lyrics.replace("\n", "")
+        
     # 模倣songリストを取得
     imitate_list = Song.objects.none()
     for imitate_id in song.imitate.split(",") if song.imitate else []:
@@ -40,16 +49,7 @@ def song(request, song_id):
     description = ""
     description += f"模倣曲数：{imitate_list.count()}, " if imitate_list.count() else ""
     description += f"被模倣曲数：{imitated_list.count()}, " if imitated_list.count() else ""
-    
-    # 歌詞のHTML化
-    br_lyrics = request.COOKIES.get("brlyrics", "normal")
-    if br_lyrics == "normal":
-        html_lyrics = song.lyrics.replace("\n", "<br>")
-    elif br_lyrics == "pack":
-        html_lyrics = re.sub(r"\n+", "<br>", song.lyrics)
-    elif br_lyrics == "brless":
-        html_lyrics = song.lyrics.replace("\n", "")
-        
+
     # 歌詞の一部をdescriptionに記述
     description_lyrics = song.lyrics.replace("\r\n", "")[:100]
     description += f"歌詞: {description_lyrics}" if description_lyrics else ""
@@ -65,12 +65,12 @@ def song(request, song_id):
         "description": description,
         "metatitle": f"{song.title} / {song.channel}",
         "song": song,
+        "br_cleaned_lyrics": br_cleaned_lyrics,
         "channels": song.channel.split(","),
         "is_lack": is_lack(song),
         "links": links,
         "imitate_list": imitate_list,
         "imitated_list": imitated_list,
-        "has_tag": has_tag,
-        "lyrics": html_lyrics
+        "has_tag": has_tag
     }
     return render(request, "subekashi/song.html", dataD)
