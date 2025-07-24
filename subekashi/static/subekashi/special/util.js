@@ -1,3 +1,16 @@
+/**
+ * @param {string} str 
+ */
+function escapeHtmlChars(str){
+return str
+    .replace(/'/g, "&#39;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/{/g, "<span>")
+    .replace(/}/g, "</span>");
+}
+
 // スペシャルデザインボタンを表示
 function add_special_button() {
     var defaultDummybuttonsEle =
@@ -353,15 +366,21 @@ class SpecialSong extends EventTarget {
         return this.audio.readied;
     }
     /**
-     * @param {number} meters
+     * @param {number} seconds 
      */
-    waitPerMeter(meters) {
+    wait(seconds){
         return new Promise((s, j) => {
             this.addEventListener("stoped", () => j("song stoped"));
             setTimeout(() => {
                 s();
-            }, (60 / this.bpm) * meters * 1000);
+            }, seconds*1000);
         });
+    }
+    /**
+     * @param {number} meters
+     */
+    waitPerMeter(meters) {
+        return this.wait((60 / this.bpm) * meters );
     }
     /**
      * @param {number} meadows
@@ -470,13 +489,7 @@ class LyricShower {
                     this.element.innerHTML += div;
                 }
                 //エスケープ処理+span変換
-                const lineLyric = line
-                    .replace(/'/g, "&#39;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/{/g, "<span>")
-                    .replace(/}/g, "</span>");
+                const lineLyric = escapeHtmlChars(line);
                 this.element.innerHTML += lineLyric;
                 lastIsLyric = true;
             }
