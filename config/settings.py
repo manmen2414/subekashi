@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_hosts',
     'subekashi',
+    'article',
     'corsheaders',
 ]
 
@@ -43,6 +44,7 @@ MIDDLEWARE = [
     'subekashi.middleware.restrict_ip.RestrictIPMiddleware',
     'subekashi.middleware.cache.CacheControlMiddleware',
     'subekashi.middleware.rate_limit.RatelimitMiddleware',
+    'subekashi.middleware.normalize_post_middleware.NormalizePostDataMiddleware',
     'corsheaders.middleware.CorsMiddleware',
 ]
 

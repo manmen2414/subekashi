@@ -1,4 +1,6 @@
 from django.shortcuts import render
+from subekashi.constants.constants import ALL_MEDIAS
+
 
 QUERY_OR_COOKIE_FORMS = [
     ("isdetail", "isdetail", "False"),
@@ -8,10 +10,13 @@ QUERY_OR_COOKIE_FORMS = [
 ]
 
 FILER_FORMS = ["issubeana", "isjoke", "islack", "isdraft", "isoriginal", "isinst", "isdeleted"]
+DISPLAY_MEDIA_INDEX = 5
 
 def songs(request) :
     dataD = {
         "metatitle" : "一覧と検索",
+        "ALL_MEDIAS": ALL_MEDIAS[:-1],     # 最後の許可されていないURLのドメイン情報は不要
+        "display_media_index": DISPLAY_MEDIA_INDEX
     }
     
     GET = request.GET
@@ -21,5 +26,5 @@ def songs(request) :
     
     for filter in FILER_FORMS:
         dataD[filter] = bool(GET.get(filter))
-
+    
     return render(request, "subekashi/songs.html", dataD)
