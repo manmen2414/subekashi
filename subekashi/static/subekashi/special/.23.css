@@ -41,3 +41,35 @@
 .move-glitch{
   animation: 0.2s steps(1) 0s 1 normal both running move-glitch;
 }
+
+#haba{
+  font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif, Meiryo;
+}
+
+#f-shoumikigenngire{
+  font-family: serif;
+  color: #7c4714;
+}
+#s-hikinobasu{
+  display: inline-block;
+  transition: transform 4s ease;
+  transform: scale(1, 1);
+}
+
+#kiokued-img-phone {
+	scale: 0.5;
+	border: 2px solid white;
+	position: fixed;
+	right: -100px;
+	bottom: -700px;
+	transition: bottom 0.5s ease-in-out;
+}
+
+#kiokued-img-pc {
+	scale: 0.3;
+	border: 3px solid white;
+	position: fixed;
+	bottom: -700px;
+	right: -600px;
+	transition: bottom 0.5s ease-in-out;
+}

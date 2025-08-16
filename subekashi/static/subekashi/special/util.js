@@ -192,10 +192,11 @@ function getIdMp3() {
 }
 
 /**
+ * @deprecated
  * 下や右や左からも出すことができるトースト。
  * @param {"ok"|"info"|"warning"|"error"} icon
  * @param {string} text
- * @param {"bottom"} side
+ * @param {"bottom"|"left"|"right"|"top"} side
  */
 async function showToastSide(side, icon, text) {
     const styles = `
@@ -341,6 +342,7 @@ class SpecialSong extends EventTarget {
     bpm = 120;
     /**
      * @param {number} bpm
+     * @param {number} meter 
      * @param {SongAudio} songAudio
      * @param {ScrollController?} scrollController
      * @param {LyricShower?} lyricShower
