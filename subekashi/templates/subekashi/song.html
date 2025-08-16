@@ -44,6 +44,9 @@
         {% for link in links %}
             <tr>
                 <td>
+                    {% if link.name == "YouTube" %}
+                    <i class="fas fa-play" onclick="playYoutubeVideo('{{ link.text }}')"></i>
+                    {% endif %}
                     <i class="far fa-copy" onclick="copy('{{ link.text }}')"></i>
                     <i class="fas fa-link"></i><p>リンク</p>
                 </td>
@@ -182,6 +185,19 @@
         navigator.clipboard.writeText(text);
         showToast("ok", "コピーしました。");
     };
+    function playYoutubeVideo(url){
+        const regExec = /youtu\.be\/([a-zA-Z0-9_\-]+)/.exec(url)
+        if(!regExec) showToast("error","このリンクはYoutubeのものではありません。");
+        const tr = document.createElement("tr");
+        tr.id = "youtube-area";
+        tr.innerHTML = `<td><i class="fas fa-window-close" onclick="closeYoutubeVideo()"></i>プレイヤー</td><td><iframe width="448" height="252" src="https://www.youtube.com/embed/${regExec[1]}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></td>`;
+        document.querySelector("#song-info").insertAdjacentElement("beforeend",tr)
+    }
+    function closeYoutubeVideo(){
+        const tr = document.querySelector("#youtube-area");
+        if(!tr)return;
+        tr.remove();
+    }
     
     {% if request.GET.toast == "edit" %}
         showToast("ok", "登録しました。");
