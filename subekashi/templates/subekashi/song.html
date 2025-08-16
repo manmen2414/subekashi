@@ -44,8 +44,8 @@
         {% for link in links %}
             <tr>
                 <td>
-                    {% if link.name == "YouTube" %}
-                    <i class="fas fa-play" onclick="playYoutubeVideo('{{ link.text }}')"></i>
+                    {% if link.embed|length > 0 %}
+                    <i class="fas fa-play" onclick="createEmbed(`{{ link.embed }}`)"></i>
                     {% endif %}
                     <i class="far fa-copy" onclick="copy('{{ link.text }}')"></i>
                     <i class="fas fa-link"></i><p>リンク</p>
@@ -185,16 +185,18 @@
         navigator.clipboard.writeText(text);
         showToast("ok", "コピーしました。");
     };
-    function playYoutubeVideo(url){
-        const regExec = /youtu\.be\/([a-zA-Z0-9_\-]+)/.exec(url)
-        if(!regExec) showToast("error","このリンクはYoutubeのものではありません。");
+    function createEmbed(embedCode){
+        if(!!document.querySelector("#embed-area")){
+            showToast("warning", "すでに表示されています。");
+            return;
+        }
         const tr = document.createElement("tr");
-        tr.id = "youtube-area";
-        tr.innerHTML = `<td><i class="fas fa-window-close" onclick="closeYoutubeVideo()"></i>プレイヤー</td><td><iframe width="448" height="252" src="https://www.youtube.com/embed/${regExec[1]}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></td>`;
+        tr.id = "embed-area";
+        tr.innerHTML = `<td><i class="fas fa-window-close" onclick="removeEmbed()"></i>プレイヤー</td><td>${embedCode}</td>`;
         document.querySelector("#song-info").insertAdjacentElement("beforeend",tr)
     }
-    function closeYoutubeVideo(){
-        const tr = document.querySelector("#youtube-area");
+    function removeEmbed(){
+        const tr = document.querySelector("#embed-area");
         if(!tr)return;
         tr.remove();
     }

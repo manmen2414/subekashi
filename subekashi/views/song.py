@@ -15,11 +15,19 @@ def song(request, song_id):
     links = []
     for url in song.url.split(",") if song.url else []:
         media = get_all_media(url)
+        embed = media["embed"]
+        if(embed != ""):
+            id = re.compile(media["idregex"]).search(url)
+            if(id is None):
+                embed = ""
+            else:
+                embed = embed.replace("__id__", id.group(1))
         links.append(
             {
                 "text": url,
                 "icon": media["icon"],
-                "name": media["name"]
+                "name": media["name"],
+                "embed": embed
             }
         )
     
