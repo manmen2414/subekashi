@@ -73,3 +73,25 @@
 	right: -600px;
 	transition: bottom 0.5s ease-in-out;
 }
+#kakuhitu-tyokusen{
+  display: block;
+  position: absolute;
+  background-color: white;
+  width: 200vw;
+  height: 4px;
+  transform: translate(-100vw,20px);
+}
+
+#lyric-left{
+	position: fixed;
+	left: 0px;
+	top: 50%;
+	transform: rotateZ(-90deg) translateY(-50%);
+}
+
+#lyric-right{
+	position: fixed;
+	right: 0px;
+	top: 50%;
+	transform: rotateZ(90deg) translateY(-50%);
+}
