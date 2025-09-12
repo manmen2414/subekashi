@@ -1,21 +1,31 @@
-// ホスト名+ドメインの取得
+/**
+ * `https://lyrics.imicomweb.com`のようにホスト名+ドメインを取得します。\
+ * 元々はこういう関数でしたが、この挙動は`location.origin`と同じ値を返します。
+ * ```
+ * const currentURL = window.location.href;
+   const protocolAndDomain = currentURL.split("//")[0] + "//" + currentURL.split("/")[2];
+   return protocolAndDomain;
+ * ```
+ */ 
 function baseURL() {
-    var currentURL = window.location.href;
-    var protocolAndDomain = currentURL.split("//")[0] + "//" + currentURL.split("/")[2];
-    return protocolAndDomain;
+    return location.origin;   
 }
 
 // 可変テキストエリア
 document.querySelectorAll('textarea').forEach((textarea) => {
     textarea.oninput = function () {
-        let clientHeight = textarea.clientHeight;
-        textarea.style.height = clientHeight + 'px';
-        let scrollHeight = textarea.scrollHeight;
-        textarea.style.height = scrollHeight + 'px';
+        const clientHeight = textarea.clientHeight;
+        textarea.style.height = clientHeight + "px";
+        const scrollHeight = textarea.scrollHeight;
+        textarea.style.height = scrollHeight + "px";
     };
 });
 
-// DRFのAPIの取得
+/**
+ * Django Rest FrameのAPIを取得します。
+ * @param {string} path 
+ * @returns {Promise<object>}
+ */
 async function getJson(path) {
     const res = await fetch(`${baseURL()}/api/${path}`, { cache: "reload" });
     return await res.json();
@@ -81,16 +91,47 @@ async function exponentialBackoff(path, from = "default", calling_func = () => {
     }
 }
 
-// s秒間プログラムを停止 awaitが必須
+/**
+ * s秒後に解決するpromiseを返します。\
+ * awaitを付けることでs秒間待機します。
+ * @param {number} s 秒数
+ * @returns {Promise<void>}
+ */
 function sleep(s) {
     return new Promise(resolve => setTimeout(resolve, s*1000));
 }
 
-// 文字列からHTML要素に変換
-function stringToHTML(string, multi=false) {
+
+// ↓multiがtrueかfalseか引数なしかで返り値を分岐できる
+/**
+ * @overload
+ * 文字列をHTML要素に変換します。
+ * @param {string} stringHtml
+ * @param {true} multi trueの場合、stringHtml内には要素が複数あると解釈し、すべて返す。
+ * @returns {HTMLCollection}
+ */
+/**
+ * @overload
+ * 文字列をHTML要素に変換します。
+ * @param {string} stringHtml
+ * @param {false} multi trueの場合、stringHtml内には要素が複数あると解釈し、すべて返す。
+ * @returns {HTMLElement}
+ */
+/**
+ * @overload
+ * 文字列をHTML要素に変換します。
+ * @returns {any}
+ */
+/**
+ * @overload
+ * 文字列をHTML要素に変換します。
+ * @param {string} stringHtml 
+ * @returns {HTMLElement}
+ */
+function stringToHTML(stringHtml, multi=false) {
     const devEle = document.createElement("div");
-    devEle.innerHTML = string;
-    htmls = devEle.children; 
+    devEle.innerHTML = stringHtml;
+    const htmls = devEle.children; 
 
     if (multi) {
         return htmls;
@@ -115,30 +156,39 @@ async function showToast(icon, text) {
     }
 }
 
-// song guesserの表示
-function appendSongGuesser(songGuesser, toEle) {
+/**
+ * song guesserを表示します。
+ * @param {string} songGuesser 
+ * @param {HTMLElement} elementToAppend 
+ */
+function appendSongGuesser(songGuesser, elementToAppend) {
     var songGuesserEle = stringToHTML(songGuesser);
-    toEle.appendChild(songGuesserEle)
+    elementToAppend.appendChild(songGuesserEle)
 }
 
-var songGuesserController;
+/**@type {AbortController?} */
+let songGuesserController = null;
+/**
+ * song guesserを取得します...?
+ * @param {string} text 
+ * @param {string} to 何かしらの要素のid.
+ * @param {AbortSignal} signal 
+ * @param {()=>void} calling_func 
+ * @returns {void}
+ */
 async function getSongGuessers(text, to, signal, calling_func = () => {}) {
-    var toEle = document.getElementById(to);
+    const toEle = document.getElementById(to);
     while (toEle.firstChild) {
         toEle.removeChild(toEle.firstChild);
     }
 
-    if (text == "") {
-        return;
-    }
+    if (text === "") return;    
 
     try {
         const songGuessers = await exponentialBackoff(`html/song_guessers?guesser=${text}`, "getSongGuessers", calling_func);
-        for (var songGuesser of songGuessers) {
+        for (const songGuesser of songGuessers) {
             // キャンセルが要求されているか確認
-            if (signal.aborted) {
-                return;
-            }
+            if (signal.aborted) return;
             
             appendSongGuesser(songGuesser, toEle);
             await sleep(0.05);
@@ -148,31 +198,40 @@ async function getSongGuessers(text, to, signal, calling_func = () => {}) {
     }
 }
 
-// グローバルヘッダーの取得
-var globalHeaderEle, globalItemEles;
+/**@type {HTMLElement} */
+let globalHeaderEle
+/**@type {HTMLElement[]} */
+let globalItemEles;
+/**
+ * グローバルヘッダーを取得・整形・設定します。
+ */
 async function getGlobalHeader() {
     try {
-        var globalHeaderRes = await fetch("https://global-header.imicom.workers.dev/");
+        const globalHeaderRes = await fetch("https://global-header.imicom.workers.dev/");
+        var globalHeaderText = await globalHeaderRes.text();
+        globalHeaderEle = stringToHTML(globalHeaderText)
+        globalItemEles = Array.from(globalHeaderEle.getElementsByClassName("imiN_list")[0].children)
+        .slice(1, -1)
+        .map(itemEle => formatGlobalHeaderItem(itemEle));
+        setGlobalHeader("pc");
+        setGlobalHeader("sp");
     } catch ( error ) {
         document.getElementById("pc-global-items-wrapper").innerHTML = "<p>界隈グローバルヘッダーエラー</p>";
         document.getElementById("sp-global-items-wrapper").innerHTML = "<p>界隈グローバルヘッダーエラー</p>";
         return;
     }
-
-    var globalHeaderText = await globalHeaderRes.text();
-    globalHeaderEle = stringToHTML(globalHeaderText)
-    globalItemEles = Array.from(globalHeaderEle.getElementsByClassName("imiN_list")[0].children)
-    .slice(1, -1)
-    .map(itemEle => formatGlobalHeaderItem(itemEle));
-    setGlobalHeader("pc");
-    setGlobalHeader("sp");
 }
 
+/**
+ * グローバルヘッダーを整形します。
+ * @param {HTMLElement} itemEle 
+ * @returns {HTMLElement}
+ */
 function formatGlobalHeaderItem(itemEle) {
-    var aTag = itemEle.closest('a');
+    const aTag = itemEle.closest('a');
 
-    var spOnly = itemEle.querySelector('span.sp_only');
-    var pcOnly = itemEle.querySelector('span.pc_only');
+    const spOnly = itemEle.querySelector('span.sp_only');
+    const pcOnly = itemEle.querySelector('span.pc_only');
 
     if (spOnly && pcOnly) {
         aTag.innerText = pcOnly.innerHTML;
@@ -183,24 +242,28 @@ function formatGlobalHeaderItem(itemEle) {
     return itemEle;
 }
 
+/**
+ * グローバルヘッダーを設定します。
+ * @param {"sp"|"pc"} type 
+ */
 function setGlobalHeader(type) {
-    var globalItemsWrapperEle = document.getElementById(`${type}-global-items-wrapper`);
+    const globalItemsWrapperEle = document.getElementById(`${type}-global-items-wrapper`);
     globalItemsWrapperEle.firstChild.remove();
     globalItemsWrapperEle.firstChild.remove();
     globalItemEles.forEach(globalItemEle => {
         globalItemsWrapperEle.appendChild(globalItemEle.cloneNode(true));
     });
-    var imiNNews = globalHeaderEle.getElementsByClassName("imiN_news")[0].children[0].innerText;
+    const imiNNews = globalHeaderEle.getElementsByClassName("imiN_news")[0].children[0].innerText;
     document.getElementById(`${type}-global-news`).innerText = imiNNews;
-    var imiNNotice1 = globalHeaderEle.getElementsByClassName("imiN_notice")[0].children[0].innerHTML.replace("<br>", "")
+    const imiNNotice1 = globalHeaderEle.getElementsByClassName("imiN_notice")[0].children[0].innerHTML.replace("<br>", "")
     document.getElementsByClassName(`${type}-global-notice`)[0].innerText = imiNNotice1;
-    var imiNNotice2 = globalHeaderEle.getElementsByClassName("imiN_notice")[0].children[1].innerHTML.replace("<br>", "")
+    const imiNNotice2 = globalHeaderEle.getElementsByClassName("imiN_notice")[0].children[1].innerHTML.replace("<br>", "")
     document.getElementsByClassName(`${type}-global-notice`)[1].innerText = imiNNotice2;
 }
 
-// #sp_menuの切り替え
-var isSpMenuOpen = false;
-document.getElementById("toggle-tab-bar").addEventListener("click", function () {
+/** #sp_menuの切り替え */
+let isSpMenuOpen = false;
+document.getElementById("toggle-tab-bar").addEventListener("click", ()=> {
     const menuEle = document.getElementById("sp_menu");
 
     if (isSpMenuOpen) {
@@ -219,17 +282,10 @@ document.getElementById("toggle-tab-bar").addEventListener("click", function () 
 
 document.body.addEventListener('click', (event) => {
     const menuEle = document.getElementById("sp_menu");
-    if (event.target.closest('#sp_menu')) {
-        return;
-    }
 
-    if (event.target.closest('#toggle-tab-bar')) {
-        return;
-    }
-
-    if (!isSpMenuOpen) {
-        return;
-    }
+    if (event.target.closest('#sp_menu')) return;
+    if (event.target.closest('#toggle-tab-bar')) return;
+    if (!isSpMenuOpen) return;
 
     menuEle.style.display = "none";
     isSpMenuOpen = false;
@@ -239,14 +295,14 @@ document.body.addEventListener('click', (event) => {
 document.addEventListener("DOMContentLoaded", () => {
     const tabBarEle = document.getElementById("tab_bar");
 
-    const isScrollable = document.documentElement.scrollHeight > window.innerHeight;
+    const isScrollable = document.documentElement.scrollHeight > innerHeight;
     if (!isScrollable) {
         tabBarEle.setAttribute("class", "tab_bar_suspend");
     }
 
     // スクロール時のイベントを設定
-    window.addEventListener("scroll", () => {
-        const scrollPosition = window.scrollY + window.innerHeight;
+    addEventListener("scroll", () => {
+        const scrollPosition = scrollY + innerHeight;
         const bottomPosition = document.documentElement.scrollHeight;
 
         // 一番下までスクロールされた場合は非表示、そうでない場合は表示
@@ -258,25 +314,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// CSRFの取得
+/**
+ * cookieからCSRFを取得します。
+ * @returns {string?}
+ */
 async function getCSRF() {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; csrftoken=`);
     if (parts.length === 2) {
-        csrf = parts.pop().split(';').shift()
-        return csrf;
+        const csrf = parts.pop().split(';').shift()
+        return csrf ?? null;
     }
 }
 
-// クッキーの保存
+/**
+ * cookieにオブジェクトのデータを格納します。
+ * @param {string} name 
+ * @param {object} json 
+ */
 function setCookie(name, json) {
-    let expire = '';
-    let period = '';
-    cookies = name + '=' + JSON.stringify(json) + ';';
+    const expire = new Date();
+    const period = 360; //保存日数
+    const cookies = name + '=' + JSON.stringify(json) + ';';
     cookies += 'path=/ ;';
 
-    period = 360;        //保存日数
-    expire = new Date();
     expire.setTime(expire.getTime() + 1000 * 3600 * 24 * period);
     expire.toUTCString();
     cookies += 'expires=' + expire + ';';
@@ -284,15 +345,18 @@ function setCookie(name, json) {
     document.cookie = cookies;
 };
 
-// クッキーの取得
+/**
+ * cookieをオブジェクト形式に直して取得します。
+ * @returns {object}
+ */
 function getCookie() {
-    var cookieDict = {};
-    var cookies = document.cookie.split("; ");
+    const cookieDict = {};
+    const cookies = document.cookie.split("; ");
     
-    if (document.cookie != '') cookies.forEach(function(cookie) {
-        var parts = cookie.split("=");
-        var name = decodeURIComponent(parts[0]);
-        var value = decodeURIComponent(parts[1].replace(/"/g, ''));
+    if (document.cookie.length !== 0) cookies.forEach((cookie)=> {
+        const parts = cookie.split("=");
+        const name = decodeURIComponent(parts[0]);
+        const value = decodeURIComponent(parts[1].replace(/"/g, ""));
         cookieDict[name] = value;
     });
     
@@ -322,14 +386,22 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-// YouTubeのURLから動画IDを取得
+/**
+ * Youtubeの通常/短縮のURLからvideo idを抜き出します。
+ * @param {string} url 
+ * @returns {string?}
+ */
 function getYouTubeId(url) {
     const regex = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:.*[?&]v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
 }
 
-// YouTubeのURLから動画IDを取得
+/**
+ * Youtubeの通常/短縮URLをvideo idのみを含む短縮URLにフォーマットします。
+ * @param {*} url 
+ * @returns 
+ */
 function formatYouTubeURL(url) {
     const youtube_id = getYouTubeId(url)
     if (!youtube_id) {
@@ -359,41 +431,45 @@ const TUTORIALS = {
     "reply": "返信が必要な場合ここに、X(旧：Twitter)のアカウントID、もしくはDiscordのユーザーID、もしくはメールアドレスを入力してください。<br>掲載拒否のお問い合わせの場合入力が必須です。",
 }
 
+/**
+ * チュートリアルトースト内のテキストを表示します。
+ * @param {string} place 
+ */
 function showTutorial(place) {
     const tutorial = TUTORIALS[place];
     showToast("info", tutorial);
 }
 
-// 表示用のトーストURLクエリを削除
+/**
+ * 表示用のトーストURLクエリを削除します。
+ */
 function deleteToastUrlQuery() {
-    const url = new URL(window.location.href);
+    const url = new URL(location.href);
     if (url.searchParams.has('toast')) {
         url.searchParams.delete('toast');
-        window.history.replaceState({}, '', url.toString());
+        history.replaceState({}, '', url.toString());
     }
 }
 
-// 曲が未完成かどうか
+/**
+ * 与えられた曲が未完成かどうか評価します。
+ * @param {//TODO: songオブジェクトの定義} song 
+ * @returns {boolean} 
+ */
 function isLack(song) {
-    if (!song.isdeleted && song.url === "") {
-        return true;
-    }
-
-    if (!song.isoriginal && !song.issubeana && song.imitate === "" && song.channel === "全てあなたの所為です。") {
-        return true;
-    }
-
-    if (!song.isinst && song.lyrics === "") {
-        return true;
-    }
-
-    return false;
+    return(
+        (!song.isdeleted && song.url === "")||
+        (!song.isoriginal && !song.issubeana && song.imitate === "" && song.channel === "全てあなたの所為です。")||
+        (!song.isinst && song.lyrics === "")
+    )
 }
 
-// 自動スクロール
-function autoScroll(deley) {
+/**
+ * 特定サイト(主にエラー)での自動スクロールを行います。
+ * @param {number} delay スクロール処理を行うディレイ(ms)
+ */
+function autoScroll(delay) {
     const htmlEle = document.documentElement || document.body;
-
     let scrollTop = htmlEle.scrollTop;
 
     const timer = setInterval(() => {
@@ -401,13 +477,13 @@ function autoScroll(deley) {
         htmlEle.scrollTop = scrollTop;
 
         // スクロールが末尾に到達したら停止
-        if (htmlEle.scrollTop + window.innerHeight >= htmlEle.scrollHeight) {
+        if (htmlEle.scrollTop + innerHeight >= htmlEle.scrollHeight) {
             clearInterval(timer);
         }
-    }, deley);
+    }, delay);
 }
 
 // 読み込み時の実行
-window.onload = function() {
+onload = function() {
     getGlobalHeader();
 }

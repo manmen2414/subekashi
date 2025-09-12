@@ -1,4 +1,4 @@
-var page = 1, songGuesserController;
+var page = 1;
 const FORMQUERYS = 'input:not(#search-button), select'
 
 COOKIE_FORMS = ["songrange", "jokerange", "sort"];
