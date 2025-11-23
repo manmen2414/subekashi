@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 # SongやChannelを編集したユーザーのIPアドレスの情報
@@ -11,7 +12,7 @@ class Editor(models.Model):
 
 
 # 楽曲のメイン情報
-# editor以外の外部キーはまだ無いので後ほどカスタムコマンドで対応を行う
+# 外部キーはまだ無いので後ほどカスタムコマンドで対応を行う
 class Song(models.Model):
     CHOICES = (
         ("song", "曲"),
@@ -34,9 +35,9 @@ class Song(models.Model):
     # imitates = models.ManyToManyField("self", symmetrical=False, related_name="imitateds", blank=True)     # TODO 自己参照
     imitate = models.CharField(blank = True, null = True, default = "", max_length = 10000)
     imitated = models.CharField(blank = True, null = True, default = "", max_length = 10000)
-    post_time = models.DateTimeField()
+    post_time = models.DateTimeField(default = timezone.now)
     upload_time = models.DateTimeField(blank = True, null = True)
-    isoriginal = models.BooleanField(default = False)
+    isoriginal = models.BooleanField(default = False)       # TODO is_
     isjoke = models.BooleanField(default = False)
     isdeleted = models.BooleanField(default = False)
     isdraft = models.BooleanField(default = False)
@@ -48,14 +49,15 @@ class Song(models.Model):
     view = models.IntegerField(blank = True, null = True)
     like = models.IntegerField(blank = True, null = True)
     category = models.CharField(default = "song", choices=CHOICES, max_length=10)
-    editor = models.ForeignKey(Editor, on_delete = models.CASCADE, null=True, related_name="songs")
 
     def __str__(self):
         return self.title
     
-    # TODO save処理のオーバーライドメソッド
-    # def save(self, *args, **kwargs):
-        # super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        if self.lyrics:
+            self.lyrics = self.lyrics.replace("\r\n", "\n")
+            # TODO channel等もcleanする
+        super().save(*args, **kwargs)
     
     # def channels(self):
         # return
@@ -74,6 +76,7 @@ class SongLink(models.Model):
 
 
 # 曲の作者の情報
+# TODO Channel -> Author, チャンネル名 -> 作者
 class Channel(models.Model):
     name = models.CharField(unique=True, max_length = 500)
 
@@ -91,7 +94,7 @@ class ChannelLink(models.Model):
 
 
 # 曲の作者の別の呼び方の情報
-# 曲の登録時や編集時に正式な呼び方に変更するために使用される
+# 曲の登録時や編集時に正式な呼び方(channel.name)に変更するために使用される
 class ChannelAlias(models.Model):
     CHOICES = (
         ("id", "ID"),
@@ -114,13 +117,20 @@ class ChannelAlias(models.Model):
         # super().save(*args, **kwargs)
 
 
-# ユーザーによる曲や作者の編集を記録した情報
+# ユーザーによる曲や作者の変更を記録した情報
 # changeは編集内容をマークダウンで記録する
 class History(models.Model):
+    CHOICES = (
+        ("new", "新規作成"),
+        ("edit", "編集"),
+        ("delete", "削除申請"),
+    )
+    
     song = models.ForeignKey(Song, blank = True, null = True, on_delete = models.SET_NULL, related_name="histories")
-    channel = models.ForeignKey(Channel, blank = True, null = True, on_delete = models.SET_NULL, related_name="histories")
-    changes = models.CharField(default = "", max_length = 20000)
-    edited_time = models.DateTimeField(blank = True, null = True)
+    title = models.CharField(default = "", max_length = 100)
+    history_type = models.CharField(default = "new", choices=CHOICES, max_length = 10)
+    create_time = models.DateTimeField(default = timezone.now)
+    changes = models.JSONField(null=True, blank=True, default=None)
     editor = models.ForeignKey(Editor, on_delete = models.CASCADE, related_name="histories")
 
 

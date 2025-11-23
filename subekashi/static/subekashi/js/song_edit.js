@@ -9,8 +9,19 @@ async function init() {
     await checkUrlForm();
     await initImitateList();
     checkButton();
+    checkDeleteForm();
 };
 window.addEventListener('load', init);
+
+// TODO checkValidityを利用
+// TODO 改行でもvalidになる不具合の修正
+function checkDeleteForm() {
+    const reasonValue = document.getElementById("reason").value;
+    const deleteEle = document.getElementById("delete-submit");
+    deleteEle.disabled = reasonValue == "";
+}
+
+document.getElementById('reason').addEventListener('input', checkDeleteForm)
 
 // 模倣リストの末尾にsongを追加
 function appendImitateList(song) {
@@ -93,6 +104,12 @@ function renderSongGuesser() {
 // すべあな原曲以外からから選択
 async function songGuesserClick(id) {
     imitateTitleEle.value = "";
+
+    if (id == song_id) {
+        showToast("error", "編集する曲の模倣曲に、その曲自身を登録することはできません。");
+        renderSongGuesser();
+        return;
+    }
     var imitateSong = await exponentialBackoff(`song/${id}`, "imitate", songGuesserClick);
     if (!imitateSong) {
         return;
@@ -138,7 +155,7 @@ async function checkTitleChannelForm() {
         const infoHTML = isLack(existingSong)
         ?
         `<span class="info"><i class="fas fa-info-circle info"></i>
-        未完成である曲の記事が<a href="${baseURL()}/songs/${existingSong.id}" target="_blank">見つかりました。</a><br>
+        未完成である曲が<a href="${baseURL()}/songs/${existingSong.id}" target="_blank">見つかりました。</a><br>
         song ID：<a href="${baseURL()}/songs/${existingSong.id}" target="_blank">${existingSong.id}</a><br>
         登録されているURL：<a href="${existingSongURL}" target="_blank">${existingSongURL}</a>${isMultipleSongURL ? 'など' : ''}<br>
         この記事を削除したい場合は、<a href="${baseURL()}/songs/${song_id}/delete?reason=${baseURL()}/songs/${existingSong.id} と重複しています。" target="_blank">こちら</a>をクリックしてください。
@@ -294,7 +311,7 @@ imitateTitleEle.addEventListener("keydown", function (event) {
 
 // フォームに変更があったかを検知
 var isFormDirty = false;
-document.querySelectorAll('input, textarea').forEach((input) => {
+document.querySelectorAll('input:not([type="submit"]), textarea').forEach((input) => {
     input.addEventListener('change', () => {
         isFormDirty = true;
     });
@@ -307,7 +324,9 @@ window.addEventListener('beforeunload', (event) => {
     }
 });
 
-// フォームが送信される際にisFormDirtyをリセット
-document.querySelector('form').addEventListener('submit', (event) => {
-    isFormDirty = false;
+// 送信ボタンは戻る処理の対象外なのでisFormDirtyをfalseにする
+document.querySelectorAll('form').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+        isFormDirty = false;
+    });
 });

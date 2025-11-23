@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -45,7 +46,6 @@ MIDDLEWARE = [
     'subekashi.middleware.cache.CacheControlMiddleware',
     'subekashi.middleware.rate_limit.RatelimitMiddleware',
     'subekashi.middleware.normalize_post_middleware.NormalizePostDataMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -82,7 +82,18 @@ SESSION_FILE_PATH = 'sessions'
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
+    'default': 
+    {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": "izuminapp$default",
+        "USER": "izuminapp",
+        "PASSWORD": MYSQL_PASSWORD,
+        "HOST": "izuminapp.mysql.pythonanywhere-services.com",
+        "OPTIONS": {"charset": "utf8mb4"},
+    } 
+} if USE_MYSQL else {
+    'default':
+    {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
@@ -143,3 +154,14 @@ LOGGING = {
 }
 
 STATICFILES_STORAGE = "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+REST_FRAMEWORK = {
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "3600/hour",
+    },
+}
