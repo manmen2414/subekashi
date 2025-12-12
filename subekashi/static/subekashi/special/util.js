@@ -1,14 +1,14 @@
 /**
- * @param {string} str 
+ * @param {string} str
  */
-function escapeHtmlChars(str){
-return str
-    .replace(/'/g, "&#39;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/{/g, "<span>")
-    .replace(/}/g, "</span>");
+function escapeHtmlChars(str) {
+    return str
+        .replace(/'/g, "&#39;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/{/g, "<span>")
+        .replace(/}/g, "</span>");
 }
 
 // スペシャルデザインボタンを表示
@@ -23,7 +23,7 @@ function add_special_button() {
     </div>
     `;
     defaultDummybuttonsEle.innerHTML = stringToHTML(
-        designedDummybuttonsEle
+        designedDummybuttonsEle,
     ).innerHTML;
 }
 
@@ -127,7 +127,7 @@ class Raindrop {
         ctx.moveTo(this.x, this.y);
         ctx.lineTo(
             this.x + this.length * Math.sin(rainAngle),
-            this.y + this.length * Math.cos(rainAngle)
+            this.y + this.length * Math.cos(rainAngle),
         );
         ctx.strokeStyle = "#777";
         ctx.lineWidth = 2;
@@ -187,7 +187,7 @@ function getIdMp3() {
     return new Audio(
         `${baseURL()}/static/subekashi/special/${
             location.pathname.split("/")[2]
-        }.mp3`
+        }.mp3`,
     );
 }
 
@@ -237,8 +237,8 @@ async function showToastSide(side, icon, text) {
     try {
         const response = await fetch(
             `/api/html/toast?icon=${encodeURIComponent(
-                icon
-            )}&text=${encodeURIComponent(text)}`
+                icon,
+            )}&text=${encodeURIComponent(text)}`,
         );
         if (!response.ok) throw new Error("Failed to fetch toast(side-mode)");
 
@@ -342,7 +342,7 @@ class SpecialSong extends EventTarget {
     bpm = 120;
     /**
      * @param {number} bpm
-     * @param {number} meter 
+     * @param {number} meter
      * @param {SongAudio} songAudio
      * @param {ScrollController?} scrollController
      * @param {LyricShower?} lyricShower
@@ -363,26 +363,28 @@ class SpecialSong extends EventTarget {
         this.waitTime = 0;
         /**@type {boolean} */
         this.playing = false;
+        this.offset = 0;
     }
     checkPlayable() {
         return this.audio.readied;
     }
     /**
-     * @param {number} seconds 
+     * @param {number} seconds
      */
-    wait(seconds){
+    wait(seconds) {
         return new Promise((s, j) => {
             this.addEventListener("stoped", () => j("song stoped"));
             setTimeout(() => {
                 s();
-            }, seconds*1000);
+            }, seconds * 1000);
         });
     }
     /**
      * @param {number} meters
      */
     waitPerMeter(meters) {
-        return this.wait((60 / this.bpm) * meters );
+        const OFFSET = this.offset;
+        return this.wait((60 / this.bpm) * meters + OFFSET);
     }
     /**
      * @param {number} meadows
@@ -399,7 +401,7 @@ class SpecialSong extends EventTarget {
         if (!!this.lyric) this.lyric.apply();
         if (this.waitTime > 0)
             await new Promise((r) =>
-                setTimeout(() => r(), this.waitTime * 1000)
+                setTimeout(() => r(), this.waitTime * 1000),
             );
         if (!!this.scroll) {
             this.scroll.start();
@@ -413,7 +415,7 @@ class SpecialSong extends EventTarget {
         this.audio.stop();
         if (!!this.scroll) this.scroll.stop();
         this.dispatchEvent(
-            new CustomEvent("stoped", { detail: this, fulfilled: _fulfilled })
+            new CustomEvent("stoped", { detail: this, fulfilled: _fulfilled }),
         );
     }
 }
@@ -557,7 +559,7 @@ class ScrollController extends EventTarget {
         if (!this.scrolling) return;
         this.scrolling = false;
         this.dispatchEvent(
-            new CustomEvent("endScroll", { detail: { fulfilled: _fulfilled } })
+            new CustomEvent("endScroll", { detail: { fulfilled: _fulfilled } }),
         );
     }
 }
