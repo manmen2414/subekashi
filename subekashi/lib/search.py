@@ -112,7 +112,7 @@ def querys_to_single_filters(querys):
     return single_filters
     
 # songのフィルタリング・ソート・統計
-def song_search(querys):
+def song_search(querys, is_paging=False):
     querys = clean_querys(querys)
     statistics = {}
     
@@ -135,8 +135,9 @@ def song_search(querys):
         statistics["count"] = count
     
     # ページ数の指定があったら、そのページの検索結果を表示しその旨の統計を保存する
-    if querys.get("page"):
-        page = int(querys["page"])
+    # なければ1ページ目を指定する
+    if is_paging:
+        page = int(querys.get("page", 1))
         size = int(querys.get("size", DEFALT_SIZE))
         statistics["page"] = page
         statistics["size"] = size

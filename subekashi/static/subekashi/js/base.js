@@ -150,6 +150,8 @@ async function getSongGuessers(text, to, signal, calling_func = () => {}) {
 
     try {
         const songGuessers = await exponentialBackoff(`html/song_guessers?guesser=${text}`, "getSongGuessers", calling_func);
+        if (!songGuessers) return;
+        
         for (var songGuesser of songGuessers) {
             // キャンセルが要求されているか確認
             if (signal.aborted) {
@@ -314,29 +316,6 @@ function getCookie() {
     
     return cookieDict;
 }
-
-// フォントのキャッシュ
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open('font-cache').then((cache) => {
-            return cache.addAll([
-                '../GenZenGothicKaiC.woff2',
-                '../NotoSansJP-VariableFont_wght.woff2'
-            ]);
-        })
-    );
-});
-
-self.addEventListener('fetch', (event) => {
-    url = event.request.url;
-    if (url.includes('GenZenGothicKaiC.woff2') || url.includes('../NotoSansJP-VariableFont_wght.woff2')) {
-        event.respondWith(
-            caches.match(event.request).then((response) => {
-                return response || fetch(event.request);
-            })
-        );
-    }
-});
 
 // YouTubeのURLから動画IDを取得
 function getYouTubeId(url) {

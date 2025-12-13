@@ -6,6 +6,8 @@ from django.utils import timezone
 # 画面上では"全て{song_id}の所為です。"と表示される
 class Editor(models.Model):
     ip = models.CharField(default = "", unique=True, max_length = 100)
+    is_open = models.BooleanField(default = True)
+    is_forced_open = models.BooleanField(default = False)
     
     def __str__(self):
         return f"全て{self.id}の所為です。"
@@ -45,7 +47,6 @@ class Song(models.Model):
     issubeana = models.BooleanField(default = True)
     isspecial = models.BooleanField(default = False)
     islock = models.BooleanField(default = False)
-    ip = models.CharField(default = "", max_length = 100)
     view = models.IntegerField(blank = True, null = True)
     like = models.IntegerField(blank = True, null = True)
     category = models.CharField(default = "song", choices=CHOICES, max_length=10)

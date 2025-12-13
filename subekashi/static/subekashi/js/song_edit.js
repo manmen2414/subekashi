@@ -25,24 +25,21 @@ document.getElementById('reason').addEventListener('input', checkDeleteForm)
 
 // 模倣リストの末尾にsongを追加
 function appendImitateList(song) {
-    const imitateStr = `
-    <div id="imitate-${song.id}">
-        <p>
-            <span class='channel'>
-                <i class='fas fa-user-circle'></i>
-                ${song.channel}
-            </span>
-            <i class='fas fa-music'></i>
-            ${song.title}
-            <span onclick="deleteImitate(${song.id})">
-                <i class='far fa-trash-alt'></i>
-            </span>
-        </p>
-    </div>
-    `;
+    const tmpl = document.getElementById("imitate-item-template");
+    const clone = tmpl.content.cloneNode(true);
 
-    var imitateListEle = document.getElementById('imitate-list');
-    imitateListEle.appendChild(stringToHTML(imitateStr));
+    clone.querySelector(".imitate-item").id = `imitate-${song.id}`;
+    clone.querySelector(".channel-name").textContent = song.channel;
+    clone.querySelector(".title").textContent = song.title;
+
+    const deleteBtn = clone.querySelector(".delete-btn");
+    deleteBtn.dataset.id = song.id;
+
+    deleteBtn.addEventListener("click", () => {
+        deleteImitate(song.id);
+    });
+
+    document.getElementById("imitate-list").appendChild(clone);
 }
 
 // 読み込み時に模倣一覧を描画
@@ -52,10 +49,12 @@ async function initImitateList() {
         return;
     }
     
-    const imitateSongList = await exponentialBackoff(`song/?imitated=${song_id}`, "init", initImitateList);
-    if (!imitateSongList) {
+    const imitateSongListRes = await exponentialBackoff(`song/?imitated=${song_id}`, "init", initImitateList);
+    
+    if (!imitateSongListRes) {
         return;
     }
+    const imitateSongList = imitateSongListRes.result;
 
     imitateIdList = imitateEle.value.split(",");
     for (const imitateSong of imitateSongList) {
@@ -140,11 +139,12 @@ async function checkTitleChannelForm() {
     // 以下の条件はvalid
     isTitleChannelValid = true;
     checkButton();
-    const existingSongs = await exponentialBackoff(`song/?title_exact=${titleEle.value}&channel_exact=${channelEle.value}`, "tiltechannel", checkTitleChannelForm);
-
-    if (existingSongs == undefined) {
+    const existingSongsRes = await exponentialBackoff(`song/?title_exact=${titleEle.value}&channel_exact=${channelEle.value}`, "tiltechannel", checkTitleChannelForm);
+    
+    if (existingSongsRes == undefined) {
         return;
     }
+    const existingSongs = existingSongsRes.result;
 
     const existingSong = existingSongs?.filter(song => song.id != song_id)[0];
 
@@ -224,12 +224,14 @@ async function checkUrlForm() {
         url = url.replace("https://twitter.com", "https://x.com");
         url = formatYouTubeURL(url);
 
-        const existingSongs = await exponentialBackoff(`song/?url=${url}`, `url${url_count}`, checkUrlForm);
+        const existingSongsRes = await exponentialBackoff(`song/?url=${url}`, `url${url_count}`, checkUrlForm);
+        
         url_count += 1;
-
-        if (existingSongs == undefined) {
+        
+        if (existingSongsRes == undefined) {
             return;
         }
+        const existingSongs = existingSongsRes.result;
 
         const existingSong = existingSongs.filter(song => song.id != song_id)[0];
 
