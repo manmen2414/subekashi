@@ -619,11 +619,13 @@ class ReductionLyric {
         `;
         document.body.appendChild(this.style);
     }
-    show(lyric) {
+    show(lyric,isHtml = false) {
         const div = document.createElement("div");
         div.className = "small_animation";
-        div.innerText = lyric;
+        if(isHtml) div.innerHTML = lyric;
+        else div.innerText = lyric;
         document.body.appendChild(div);
         setTimeout(() => div.remove(), this.speed * 1000 - 50);
+        return div;
     }
 }
