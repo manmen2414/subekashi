@@ -1,0 +1,9 @@
+@font-face {
+    font-family: "KHDot";
+    src: url("/static/subekashi/special/KH-Dot/KH-Dot-Ningyouchou-16.woff2") format("woff2");
+    font-display: swap;
+}
+
+.kh{
+    font-family: "KHDot";
+}
