@@ -86,7 +86,7 @@ function special() {
     <span id="yakusoku">約束</span>だよ。<br><br>
     美しいままに終わる者よ、<br>
     廻間に生きた声を手繰る者よ、<br>
-    名も無き海に<span id="yakusoku">堕</span>ちた曙光を、<br>
+    名も無き海に<span class="blue">堕</span>ちた曙光を、<br>
     取り戻すと誓った、<br>
     あなたが旅立つまでに。`;
 
