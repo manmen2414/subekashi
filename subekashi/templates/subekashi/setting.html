@@ -8,93 +8,152 @@
 <section>
     <h1>設定</h1>
     <div class="underline"></div>
-    <div class="form-col">
-    <label>界隈曲の表示</label>
-        <select id="songrange" onchange="setting(true)">
-            <option value="all">全て表示</option>
-            <option value="subeana" selected>すべあな界隈曲のみを表示</option>
-            <option value="xx">すべあな界隈曲以外を表示</option>
-        </select>
-    </div>
-    <div class="form-col">
-        <label>ネタ曲</label>
-        <select id="jokerange" onchange="setting(true)">
-            <option value="on">表示</option>
-            <option value="off" selected>非表示</option>
-        </select>
-    </div>
-    <div class="form-col">
-        <label>歌詞の改行</label>
-        <select id="brlyrics" onchange="setting(true)">
-            <option value="normal" selected>全ての改行を表示</option>
-            <option value="pack">連続した改行を非表示</option>
-            <option value="brless">全ての改行を非表示</option>
-        </select>
-    </div>
-    <div class="form-col">
-        <label>宣伝の表示</label>
-        <select id="adrange" onchange="setting(true)">
-            <option value="on" selected>表示</option>
-            <option value="off">非表示</option>
-        </select>
-    </div>
-    <div class="form-col">
-        <label>編集の公開</label>
-        <select id="is_open" onchange="change_is_open()">
-            <option value="on" {% if editor.is_open %}selected{% endif %}>公開</option>
-            <option value="off" {% if not editor.is_open %}selected{% endif %}>非公開</option>
-        </select>
-    </div>
+
+    {% with top_settings=settings.top search_settings=settings.search song_settings=settings.song edit_settings=settings.edit %}
+    <h2>トップ画面</h2>
+    {% for setting in top_settings %}
+        <div class="form-col">
+            <label>{{ setting.label }}</label>
+            <select id="{{ setting.id }}" class="setting-input">
+                {% for option in setting.options %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endfor %}
+
+    <h2>検索画面</h2>
+    {% for setting in search_settings %}
+        <div class="form-col">
+            <label>{{ setting.label }}<i class="fas fa-info-circle" onclick="showTutorial('select');"></i></label>
+            <select id="{{ setting.id }}" class="setting-input">
+                {% for option in setting.options %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endfor %}
+
+    <h2>曲画面</h2>
+    {% for setting in song_settings %}
+        <div class="form-col">
+            <label>{{ setting.label }}</label>
+            <select id="{{ setting.id }}" class="setting-input">
+                {% for option in setting.options %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endfor %}
+
+    <h2>新規作成/編集画面</h2>
+    {% for setting in edit_settings %}
+        <div class="form-col">
+            <label>{{ setting.label }}</label>
+            <select id="{{ setting.id }}" class="setting-input edit-setting">
+                {% for option in setting.options %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.text }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endfor %}
+    {% endwith %}
 </section>
 {% endblock %}
 
 {% block js %}
 <script defer>
-    var selectEles = document.getElementsByTagName("select");
-    var settingMap = ["songrange", "jokerange", "brlyrics", "adrange"];     // TODO ここを動的にする
+    window.addEventListener('load', function(){
+        restoreFormValuesFromCookies();
 
-    function setting(isUpdate) {
-        var i = 0;
-        for (selectEle of selectEles) {
-            value = getCookie()[settingMap[i]];
-            if ((value === undefined) || isUpdate) {
-                setCookie(settingMap[i], selectEle.value);
-            } else {
-                selectEle.value = value;
-            }
-            i++;
+        // 全てのsetting-inputに変更イベントリスナーを追加
+        const settingInputs = document.querySelectorAll('.setting-input');
+        settingInputs.forEach(input => {
+            input.addEventListener('change', handleInputChange);
+        });
+    });
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+            restoreFormValuesFromCookies();
         }
+    });
+
+    // 他のページからブラウザバックしたとき、フォームの内容をcookieの値に反映する
+    function restoreFormValuesFromCookies() {
+        const cookies = getCookie();
+        const settingInputs = document.querySelectorAll('.setting-input:not(.edit-setting)');
+
+        settingInputs.forEach(input => {
+            const cookieValue = cookies[input.id];
+            if (cookieValue && input.value !== cookieValue) {
+                input.value = cookieValue;
+            }
+        });
     }
 
+    async function handleInputChange(e) {
+        const input = e.target;
+
+        // edit-settingクラスの場合は別処理
+        if (input.classList.contains('edit-setting')) {
+            change_is_open();
+            return;
+        }
+
+        // 変更された設定を即座に保存
+        await saveSingleSetting(input.id, input.value);
+    }
+
+    async function saveSingleSetting(key, value) {
+        try {
+            const csrf = await getCSRF();
+
+            const res = await fetch(
+                baseURL() + "/api/setting/save/",
+                {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrf
+                    },
+                    body: JSON.stringify({ cookies: { [key]: value } })
+                }
+            );
+
+            const data = await res.json();
+
+            if (data.status !== 'success') {
+                console.error('保存に失敗しました:', data.message);
+            }
+        } catch (error) {
+            console.error('エラーが発生しました:', error);
+        }
+    }
 
     async function change_is_open() {
         try {
             const csrf = await getCSRF();
             const is_open_value = document.getElementById("is_open").value;
             const res = await fetch(
-            baseURL() + "/api/editor/is_open",
-            {
-                method: "PUT",
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrf
-                },
-                body: JSON.stringify(
-                    {
-                        "ip": "{{ editor.ip }}",
-                        "is_open": is_open_value == "on",
-                    }
-                )
-            }
-        )
+                baseURL() + "/api/editor/is_open",
+                {
+                    method: "PUT",
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrf
+                    },
+                    body: JSON.stringify(
+                        {
+                            "ip": "{{ editor.ip }}",
+                            "is_open": is_open_value == "on",
+                        }
+                    )
+                }
+            )
         } catch (error) {
             console.error(error)
         }
-        
     }
-
-    window.addEventListener('load', function(){
-        setting(false);
-    });
 </script>
 {% endblock %}

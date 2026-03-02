@@ -15,6 +15,13 @@ document.querySelectorAll('textarea').forEach((textarea) => {
     };
 });
 
+// <input type="number">上でスクロールしても値が変わらないようにする
+document.addEventListener('wheel', function(event) {
+    if (event.target.type === 'number') {
+        event.target.blur();
+    }
+}, { passive: true });
+
 // DRFのAPIの取得
 async function getJson(path) {
     const res = await fetch(`${baseURL()}/api/${path}`, { cache: "reload" });
@@ -347,22 +354,23 @@ function formatYouTubeURL(url) {
 
 // チュートリアルトーストの表示
 const TUTORIALS = {
-    "new-form-auto": "YouTubeのリンクからタイトル・チャンネル名を自動で取得して登録するフォームです。既に登録してあるURLは登録できません。",
+    "new-form-auto": "YouTubeのリンクからタイトル・作者を自動で取得して登録するフォームです。既に登録してあるURLは登録できません。",
     "youtube-url": "YouTubeのURLを入力してください。<br>「後で見る」を含むプレイリスト内の動画のURLでも大丈夫です。<br>無断転載された動画のURLの記載はお控えください。",
     "is-original": "オリジナル模倣曲・フリースタイル模倣曲の場合はチェックをつけてください。<br>例）<a href='https://youtu.be/XkIKM80-Znc' target='_blank'>∴∴∴∴</a> <a href='https://youtu.be/zDUvoKUOviQ' target='_blank'>天秤にかけて</a>",
     "is-deleted": "アクセスしても視聴できない場合にチェックしてください。<br>限定公開の場合はチェックする必要はありません。",
     "is-joke": "ネタに走っている曲の場合にチェックしてください。<br>ネタ曲かどうかの判断は個人の判断に任せます。",
     "is-inst": "歌詞の無い曲の場合にチェックしてください。<br>例）<a href='https://youtu.be/6-h8cW_Han8' target='_blank'>明日へ降る雨</a> <a href='https://youtu.be/2P62pozC9Zc' target='_blank'>またの御アクセスをお待ちしております。</a>",
     "is-subeana": "すべあな界隈曲の場合はチェックしてください。<br>すべあな界隈曲かどうかの判断は個人の判断に任せます。",
-    "new-form-manual": "手動でタイトル・チャンネル名を入力するフォームです。",
+    "new-form-manual": "手動でタイトル・作者を入力するフォームです。",
     "title": "YouTube上のタイトルや曲名を入力してください。<br>曲によっては複数のタイトルがある場合もあるので、その場合は一般的に知られているタイトルを入力することをオススメします。<span style='font-size: 10px'>将来的に曲の別名を入力できる機能を実装予定です。</span>",
-    "channel": "チャンネル名やアーティスト名を入力してください。<br>複数のアーティストが関わっている場合はコンマ(,)で区切って入力してください。<br>複数の名義がある場合は、現在使われている名義・チャンネル名を入力してください。<span style='font-size: 10px'>将来的に名義に関する情報を入力できる機能を実装予定です。</span>",
+    "authors": "作者やアーティスト名を入力してください。<br>複数のアーティストが関わっている場合はコンマ(,)で区切って入力してください。<br>複数の名義がある場合は、現在使われている名義・作者を入力してください。<span style='font-size: 10px'>将来的に名義に関する情報を入力できる機能を実装予定です。</span>",
     "url": "URLを入力してください。<br>半角コンマ(,)で区切ることで複数のURLを登録することができます。<br>転載動画のURLの記載はお控えください。",
     "imitate": "模倣元・オマージュ元・歌詞の引用元・アレンジ元の曲を入力してください。<br>全てあなたの所為です。の曲を選択するときは上部のボタンから、それ以外の曲を選択するときは下部の入力欄から検索することで選択できます。<br>入力欄に模倣曲のタイトルを入力してもヒットしない場合はまず、その模倣曲を情報を登録してください。<br>模倣曲は複数曲選択できます。",
     "lyrics": "歌詞を入力してください。<br>インスト曲の場合は入力は不要です。<br>形式は特に決まっていませんが、できるだけMVと同じように記述してくれると助かります。",
     "is-draft": "下書きとして投稿したい場合はチェックしてください。<br>入力途中だけど投稿したいときに利用してください。<br>下書きした内容は誰でも閲覧できる状態になります。",
     "delete": "開発者に記事の削除依頼を送ります。<br>実際に削除の対応をするまでに時間がかかる場合があります。",
     "reply": "返信が必要な場合ここに、X(旧：Twitter)のアカウントID、もしくはDiscordのユーザーID、もしくはメールアドレスを入力してください。<br>掲載拒否のお問い合わせの場合入力が必須です。",
+    "select": "詳細検索の選択肢である界隈曲の種類・ネタ曲・並び替えの状態を保存します。保存しない場合、選択肢は上から、「全て表示」、「全て表示」、「更新日が遅い順」になります。",
 }
 
 function showTutorial(place) {
@@ -379,13 +387,25 @@ function deleteToastUrlQuery() {
     }
 }
 
+// authorsフィールドから作者文字列を取得
+function getAuthorText(song) {
+    return song.authors && song.authors.length > 0
+        ? song.authors.map(author => author.name).join(',')
+        : '';
+}
+
 // 曲が未完成かどうか
 function isLack(song) {
     if (!song.isdeleted && song.url === "") {
         return true;
     }
 
-    if (!song.isoriginal && !song.issubeana && song.imitate === "" && song.channel === "全てあなたの所為です。") {
+    // authorsで特殊作者を確認
+    const hasSpecialAuthor = song.authors
+        ? song.authors.some(author => author.id === 1)
+        : false;
+
+    if (!song.isoriginal && !song.issubeana && song.imitate === "" && hasSpecialAuthor) {
         return true;
     }
 
@@ -397,12 +417,13 @@ function isLack(song) {
 }
 
 // 自動スクロール
+let timer = null;
 function autoScroll(deley) {
     const htmlEle = document.documentElement || document.body;
 
     let scrollTop = htmlEle.scrollTop;
 
-    const timer = setInterval(() => {
+    timer = setInterval(() => {
         scrollTop += 1;
         htmlEle.scrollTop = scrollTop;
 
