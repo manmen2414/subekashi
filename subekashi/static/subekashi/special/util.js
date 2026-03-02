@@ -65,9 +65,9 @@ function resizeCanvas() {
 
 // 再生停止ボタンを追加
 // ※スペシャルデザインボタンと同じくspecial関数が実行される。
-function addPlayStopButton() {
+function addPlayStopButton(deleteButtons =false) {
     const defaultDummybuttonsEle = document.querySelector(".dummybuttons");
-    defaultDummybuttonsEle.innerHTML = "";
+    if(deleteButtons) defaultDummybuttonsEle.innerHTML = "";
     const anchor = document.createElement("a");
     const div = document.createElement("div");
     div.className = "dummybutton";
