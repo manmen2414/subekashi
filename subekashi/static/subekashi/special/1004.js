@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
   );
 });
 function t() {
+  return;
   /**@type {HTMLAudioElement} */
   const tp = document.getElementById("tempo");
   tp.currentTime = 0;
@@ -248,7 +249,7 @@ async function special() {
   addLyric(33, 12);
   addLyric(34, 12);
   nowTime += millsecondsForBeat * 1;
-  DEV_SETSEEKAT = nowTime; // これをスライドするとそその位置に飛ぶ
+  //DEV_SETSEEKAT = nowTime; // これをスライドするとそその位置に飛ぶ
   nowTime += millsecondsForBeat * 3;
   nowTime += millsecondsForBeat * 4;
   // 取り零した笑顔と、
@@ -318,6 +319,8 @@ function setupLyric() {
 `;
   lyric.innerHTML = START_LYRIC_TEXT;
   lyric.style.fontSize = "3vw";
+  lyric.style.whiteSpace = "nowrap";
+
 }
 
 function dev() {
