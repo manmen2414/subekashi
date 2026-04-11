@@ -1,14 +1,26 @@
 var imitateIdList = [], songGuesserController, song_id;
 
-// TODO 1回のexponentialBackoffで済ませる
 // 初期化
 const lyricsEle = document.getElementById("lyrics")
 async function init() {
     openDeleteDetails();
     song_id = window.location.pathname.split("/")[2];
-    await checkTitleAuthorForm();
-    await checkUrlForm();
-    await initImitateList();
+    const allowDupUrl = new URLSearchParams(window.location.search).get('allow_dup_url');
+    if (allowDupUrl) document.getElementById('url').value = allowDupUrl;
+
+    const params = new URLSearchParams({ song_id });
+    if (titleEle.value) params.append('title', titleEle.value);
+    if (authorsEle.value.trim()) params.append('authors', authorsEle.value);
+    if (urlEle.value) params.append('urls', urlEle.value);
+    if (imitateEle.value) params.append('fetch_imitate', '1');
+
+    const initData = await exponentialBackoff(`song_edit_init/?${params}`, "init", init);
+    if (!initData) return;
+
+    await checkTitleAuthorForm(initData.title_author_songs);
+    await checkUrlForm(initData.song_links);
+    await initImitateList(initData.imitate_songs);
+    document.getElementById("song-guesser").innerHTML = "";
     checkButton();
     checkDeleteForm();
 };
@@ -27,11 +39,10 @@ function openDeleteDetails() {
 }
 
 // TODO checkValidityを利用
-// TODO 改行でもvalidになる不具合の修正
 function checkDeleteForm() {
     const reasonValue = document.getElementById("reason").value;
     const deleteEle = document.getElementById("delete-submit");
-    deleteEle.disabled = reasonValue == "";
+    deleteEle.disabled = reasonValue.trim() == "";
 }
 
 document.getElementById('reason').addEventListener('input', checkDeleteForm)
@@ -57,17 +68,21 @@ function appendImitateList(song) {
 
 // 読み込み時に模倣一覧を描画
 var imitateEle = document.getElementById("imitate");
-async function initImitateList() {
+async function initImitateList(prefetchedSongs = undefined) {
     if (!imitateEle.value) {
         return;
     }
-    
-    const imitateSongListRes = await exponentialBackoff(`song/?imitated=${song_id}`, "init", initImitateList);
 
-    if (!imitateSongListRes) {
-        return;
+    let imitateSongList;
+    if (Array.isArray(prefetchedSongs)) {
+        imitateSongList = prefetchedSongs;
+    } else {
+        const imitateSongListRes = await exponentialBackoff(`song/?imitated=${song_id}`, "init", initImitateList);
+        if (!imitateSongListRes) {
+            return;
+        }
+        imitateSongList = imitateSongListRes.result;
     }
-    const imitateSongList = imitateSongListRes.result;
 
     imitateIdList = imitateEle.value.split(",");
     for (const imitateSong of imitateSongList) {
@@ -138,12 +153,12 @@ var isTitleAuthorFormTouched = false;  // ユーザーが入力したかどう�
 authorsEle.addEventListener('input', () => { isTitleAuthorFormTouched = true; checkTitleAuthorForm(); });
 titleEle.addEventListener('input', () => { isTitleAuthorFormTouched = true; checkTitleAuthorForm(); });
 var isTitleAuthorValid = false;
-async function checkTitleAuthorForm() {
+async function checkTitleAuthorForm(prefetchedSongs = undefined) {
     isTitleAuthorValid = false;
     checkButton();
     const songEditInfoTitleAuthorsEle = document.getElementById('song-edit-info-title-authors');
 
-    const loadingEle = `<img src="${baseURL()}/static/subekashi/image/loading.gif" id="loading" alt='loading'></img>`
+    const loadingEle = `<span class="loading"></span>`
     songEditInfoTitleAuthorsEle.innerHTML = loadingEle;
 
     // タイトルが空の場合
@@ -169,23 +184,27 @@ async function checkTitleAuthorForm() {
     // 以下の条件はvalid
     isTitleAuthorValid = true;
     checkButton();
-    const existingSongsRes = await exponentialBackoff(`song/?title_exact=${titleEle.value}&author_exact=${authorsEle.value}`, "titleauthor", checkTitleAuthorForm);
-    
-    if (existingSongsRes == undefined) {
-        return;
+
+    let existingSongs;
+    if (Array.isArray(prefetchedSongs)) {
+        existingSongs = prefetchedSongs;
+    } else {
+        const existingSongsRes = await exponentialBackoff(`song/?title_exact=${encodeURIComponent(titleEle.value)}&author_exact=${encodeURIComponent(authorsEle.value)}`, "titleauthor", checkTitleAuthorForm);
+        if (existingSongsRes == undefined) {
+            return;
+        }
+        existingSongs = existingSongsRes.result;
     }
-    const existingSongs = existingSongsRes.result;
 
     const existingSong = existingSongs?.filter(song => song.id != song_id)[0];
 
     // 既に登録されている曲の場合
-    // TODO checkUrlFormを参考にリファクタリングする
     if (existingSong) {
-        const isMultipleSongURL = existingSong.url.includes(',');
-        const existingSongURL = isMultipleSongURL ? existingSong.url.split(",")[0] : existingSong.url;
+        const isMultipleSongURL = existingSong.url.length > 1;
+        const existingSongURL = existingSong.url[0] ?? "";
         const infoHTML = isLack(existingSong)
         ?
-        `<span class="info"><i class="fas fa-info-circle info"></i>
+        `<span class="warning"><i class="fas fa-exclamation-triangle warning"></i>
         未完成である曲が<a href="${baseURL()}/songs/${existingSong.id}" target="_blank">見つかりました。</a><br>
         song ID：<a href="${baseURL()}/songs/${existingSong.id}" target="_blank">${existingSong.id}</a><br>
         登録されているURL：<a href="${existingSongURL}" target="_blank">${existingSongURL}</a>${isMultipleSongURL ? 'など' : ''}<br>
@@ -225,12 +244,12 @@ titleEle.addEventListener('input', checkTitleAuthorForm);
 // URLの入力チェック
 const urlEle = document.getElementById('url');
 var isUrlValid = true;
-async function checkUrlForm() {
+async function checkUrlForm(prefetchedLinks = undefined) {
     isUrlValid = false;
     checkButton();
     const songEditInfoUrlEle = document.getElementById('song-edit-info-url');
 
-    const loadingEle = `<img src="${baseURL()}/static/subekashi/image/loading.gif" id="loading" alt='loading'></img>`
+    const loadingEle = `<span class="loading"></span>`
     songEditInfoUrlEle.innerHTML = loadingEle;
 
     // URLが空の場合
@@ -241,7 +260,11 @@ async function checkUrlForm() {
         return;
     }
 
-    for (url of urlEle.value.split(',')) {
+    const urlList = urlEle.value.split(',');
+    const allowDupSongsAll = [];  // allow_dup=Trueの曲を収集
+    for (let i = 0; i < urlList.length; i++) {
+        let url = urlList[i];
+
         // urlでない場合
         if (!url.match(/^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/)) {
             songEditInfoUrlEle.innerHTML = "<span class='error'><i class='fas fa-ban error'></i>入力形式が正しくありません</span>";
@@ -254,54 +277,70 @@ async function checkUrlForm() {
         url = url.replace("https://twitter.com", "https://x.com");
         url = formatYouTubeURL(url);
 
-        const existingSongsRes = await exponentialBackoff(
-            `song/?url=${encodeURIComponent(url)}`,
-            'url',
-            checkUrlForm
-        );
-        if (!existingSongsRes) return;
+        // イテレーションごとに固有のfromキーを使い、ループ間のスロットル干渉を防ぐ
+        let links;
+        if (Array.isArray(prefetchedLinks)) {
+            links = prefetchedLinks[i] ?? [];
+        } else {
+            const existingLinksRes = await exponentialBackoff(
+                `songlink/?url=${encodeURIComponent(url)}`,
+                `url_${i}`,
+                checkUrlForm
+            );
+            if (!existingLinksRes) return;
+            links = existingLinksRes.result;
+        }
 
-        const existingSongs = existingSongsRes.result;
-        const existingSong = existingSongs.find(song => song.id != song_id);
-        
-        // 自身以外のurlが重複していなかったら
-        if (!existingSong) {
-            isUrlValid = true;
+        // is_removed=Trueのリンクがある場合（URLの曲が削除済み）
+        if (links.some(link => link.is_removed)) {
             checkButton();
-            songEditInfoUrlEle.innerHTML = "<span class='ok'><i class='fas fa-check-circle ok'></i>登録可能な状態です</span>";
+            songEditInfoUrlEle.innerHTML = "<span class='error'><i class='fas fa-ban error'></i>このURLの曲は削除されました</span>";
             return;
         }
 
-        // 曲のurlが重複していたら
-        const base = baseURL();
-        const songId = existingSong.id;
-        const title = escapeHtml(existingSong.title);
-        const author = escapeHtml(getAuthorText(existingSong));
+        // 自身以外かつallow_dup=FalseのURLが重複していたらエラー
+        const existingLink = links.find(
+            link => !link.allow_dup && link.songs.some(s => s.id != song_id)
+        );
+        if (existingLink) {
+            const song = existingLink.songs.find(s => s.id != song_id);
+            const songLink = `${baseURL()}/songs/${song.id}`;
+            const deleteReason = encodeURIComponent(`${songLink} と重複しています。`);
+            const deleteLink = `${baseURL()}/songs/${song_id}/delete?reason=${deleteReason}`;
+            const allowDupLink = `?allow_dup_url=${encodeURIComponent(url)}`;
+            songEditInfoUrlEle.innerHTML = `
+            <span class="error">
+                <i class="fas fa-ban error"></i>
+                このURLは<br>
+                ${makeSongInfoRowsHTML([song])}<br>
+                として<a href="${songLink}" target="_blank">既に登録されています</a>${song.is_lack ? "がまだ未完成です。" : "。"}<br>
+                この記事を削除したい場合、<br>
+                <a href="${deleteLink}" target="_blank"><i class="error far fa-trash-alt"></i>削除申請</a>を行ってください。<br>
+                複数の曲があるURLとして登録したい場合、<br><a href="${allowDupLink}">こちら</a>をクリックしてください。
+            </span>`;
+            return;
+        }
 
-        const songLink = `${base}/songs/${songId}`;
-        const deleteReason = encodeURIComponent(`${songLink} と重複しています。`);
-        const deleteLink = `${base}/songs/${song_id}/delete?reason=${deleteReason}`;
+        // allow_dup=Trueの曲を収集（自身以外）
+        links
+            .filter(link => link.allow_dup)
+            .flatMap(link => link.songs.filter(s => s.id != song_id))
+            .forEach(s => allowDupSongsAll.push(s));
+    }
 
-        const isIncomplete = isLack(existingSong);
-        const infoHTML = `
-        <span class="error">
-            <i class="fas fa-ban error"></i>
-            このURLは<br>
-            song ID：<a href="${songLink}" target="_blank">${songId}</a><br>
-            タイトル：${title}<br>
-            作者：${author}<br>
-            として
-            <a href="${songLink}" target="_blank">既に登録されています</a>
-            ${isIncomplete ? "がまだ未完成です。" : "。"}<br>
-            この記事を削除したい場合、<br>
-            <a href="${deleteLink}" target="_blank"><i class="error far fa-trash-alt"></i>削除申請</a>
-            を行ってくださいください。
-        </span>
-        `;
-
-        songEditInfoUrlEle.innerHTML = infoHTML;
+    // allow_dup=Trueの重複がある場合は情報表示（登録は可能）
+    const uniqueAllowDupSongs = [...new Map(allowDupSongsAll.map(s => [s.id, s])).values()];
+    if (uniqueAllowDupSongs.length) {
+        isUrlValid = true;
+        checkButton();
+        songEditInfoUrlEle.innerHTML = `<span class='info'><i class='fas fa-info-circle info'></i>このURLは以下の曲と重複していますが登録できます。<br>${makeSongInfoRowsHTML(uniqueAllowDupSongs)}</span>`;
         return;
     }
+
+    // 全てのURLが重複していない場合
+    isUrlValid = true;
+    checkButton();
+    songEditInfoUrlEle.innerHTML = "<span class='ok'><i class='fas fa-check-circle ok'></i>登録可能な状態です</span>";
 }
 urlEle.addEventListener('input', checkUrlForm);
 
@@ -368,7 +407,7 @@ window.addEventListener('beforeunload', (event) => {
 
 // 送信ボタンは戻る処理の対象外なのでisFormDirtyをfalseにする
 document.querySelectorAll('form').forEach((form) => {
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', () => {
         isFormDirty = false;
     });
 });

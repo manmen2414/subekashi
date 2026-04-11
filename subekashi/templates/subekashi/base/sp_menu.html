@@ -2,19 +2,13 @@
 
 
 <div id="sp_menu" class="sansfont">
-    <a href="{% url 'subekashi:top' %}"><i class="fas fa-home"></i><p>トップ</p></a>
-    <a href="{% url 'subekashi:song_new' %}"><i class="fa fa-plus"></i><p>新規登録</p></a>
-    <a href="{% url 'subekashi:songs' %}"><i class="fas fa-search"></i><p>検索</p></a>
-    <a href="{% url 'subekashi:ai' %}"><i class="fa fa-robot"></i><p>歌詞生成</p></a>
-    <a href="{% url 'subekashi:ad' %}"><i class="fas fa-bullhorn"></i><p>宣伝</p></a>
-    <a href="{% url 'article:articles' %}"><i class="fas fa-book"></i><p>記事</p></a>
-    <a href="{% url 'subekashi:contact' %}"><i class="fas fa-envelope"></i><p>お問い合わせ</p></a>
-    <a href="{% url 'subekashi:setting' %}"><i class="fas fa-cog"></i><p>設定</p></a>
+    {% for aside_page in aside_pages %}
+    <a href="{% url aside_page.url %}"><i class="{{ aside_page.icon }}"></i><p>{{ aside_page.name }}</p></a>
+    {% endfor %}
     <a href="https://www.youtube.com/@subeteanatanoseidesu" target="_blank"><i class="far fa-user"></i><p>全てあなたの所為です。</p></a>
     <p id="sp_version"><i class="fa fa-history"></i> <span id="version">{{ version }}</span></p>
     <div id="sp-global-header">
         <div id="sp-global-items-wrapper" class="sansfont">
-        <p>界隈グローバルヘッダーの読み込み中...</p>
         </div>
         <div id="sp-global-message">
             <p id="sp-global-news"></p>
@@ -22,6 +16,9 @@
             <p class="sp-global-notice"></p>
         </div>
     </div>
+    <footer id="sp_menu_footer">
+        <p>当サイトは非公式です。<a href="https://github.com/izumin2000/subekashi" target="_blank" rel="noopener noreferrer"><i class="fab fa-github"></i>GitHub</a></p>
+    </footer>
 </div>
 <div id="tab_bar">
     <a href="{% url 'subekashi:top' %}"><i class="fas fa-home"></i></a>

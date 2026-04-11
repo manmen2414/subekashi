@@ -1,0 +1,46 @@
+{% extends "subekashi/base/base.html" %}
+
+
+{% load static %}
+{% load changes %}
+{% block noindex %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block css %}{% static 'subekashi/css/editor.css'%}{% endblock %}
+
+{% block content %}
+<section>
+    <h1><span id="h1-title">編集履歴</span></h1>
+    <div class="dummybuttons">
+        {% if my_editor %}
+            <a href="{% url 'subekashi:editor' my_editor.id %}">
+                <div class="dummybutton"><i class="fas fa-user-edit"></i><p>自分の編集履歴</p></div>
+            </a>
+        {% endif %}
+        {% include "subekashi/components/history_action_buttons.html" %}
+    </div>
+    <form method="get" action="">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="編集履歴の概要で検索">
+        <button type="submit">検索</button>
+    </form>
+    <p id="history-count">{{ page_obj.paginator.count }}件</p>
+
+    {% include "subekashi/components/pagination.html" %}
+    {% for history in page_obj %}
+        <details class="history_details">
+            <summary><p>{{ history.create_time }}</p><p>{{ history.title }}</p></summary>
+            {% render_changes history %}
+            {% if history.song %}
+                <a href="{% url 'subekashi:song' history.song.id %}">{{ history.song.title }}</a>
+            {% else %}
+                <p>この曲は削除されました</p>
+            {% endif %}
+            {% include "subekashi/components/editor_link.html" %}
+        </details>
+    {% endfor %}
+
+    {% include "subekashi/components/pagination.html" %}
+</section>
+{% endblock %}
+
+{% block js %}
+    <script src="{% static 'subekashi/js/editor.js' %}" defer></script>
+{% endblock %}

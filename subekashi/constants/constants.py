@@ -19,6 +19,11 @@ ASIDE_PAGES = [
         "icon": "fas fa-search"
     },
     {
+        "url": "subekashi:histories",
+        "name": "編集履歴",
+        "icon": "fas fa-history"
+    },
+    {
         "url": "subekashi:ai",
         "name": "歌詞生成",
         "icon": "fa fa-robot"
@@ -160,3 +165,5 @@ ALL_MEDIAS = ALLOW_MEDIAS + [
 # LONG_TERM: 365日（静的ファイルのキャッシュ、ユーザー設定のcookie用）
 SHORT_TERM_COOKIE_AGE = 30 * 60
 LONG_TERM_COOKIE_AGE = 365 * 24 * 60 * 60
+
+HISTORIES_PER_PAGE = 50

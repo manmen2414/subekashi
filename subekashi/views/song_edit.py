@@ -1,74 +1,83 @@
 from django.shortcuts import render, redirect
-from django.utils import timezone
 from django.urls import reverse
-from config.local_settings import NEW_DISCORD_URL
-from config.settings import ROOT_URL
-from subekashi.models import *
-from subekashi.lib.url import *
-from subekashi.lib.ip import *
-from subekashi.lib.discord import *
-from subekashi.lib.song_search import song_search
+from django.views import View
+from config.local_settings import NEW_DISCORD_URL, CONTACT_DISCORD_URL
+from subekashi.forms import SongEditForm
+from subekashi.models import Song, Editor, History, SongLink, SongFields
+from subekashi.lib.url import clean_url, get_allow_media
+from subekashi.lib.ip import get_ip
+from subekashi.lib.discord import send_discord
 from subekashi.lib.author_helpers import get_or_create_authors
+from subekashi.lib.song_service import (
+    check_reject_list,
+    validate_song_url,
+    get_imitate_songs,
+    update_song,
+    build_edit_song_discord_text,
+)
 
 
-def song_edit(request, song_id):
-    # Songがなければ404
-    try :
-        song = Song.objects.get(pk = song_id)
-    except :
-        return render(request, 'subekashi/404.html', status=404)
-    
-    # 編集不可の場合は元の曲情報閲覧画面に戻してロックされていますトーストを表示
-    if song.islock:
-        return redirect(f'/songs/{song_id}?toast=lock')
-    
-    dataD = {
-        "metatitle": f"{song.title}の編集",
-        "song": song,
-    }
+class SongEditView(View):
+    def dispatch(self, request, song_id, *args, **kwargs):
+        self.song = Song.get_or_none(song_id)
+        if self.song is None:
+            return render(request, 'subekashi/404.html', status=404)
+        if self.song.is_lock:
+            return redirect(f'/songs/{song_id}?toast=lock')
+        return super().dispatch(request, song_id, *args, **kwargs)
 
-    if request.method == "POST":
-        title = request.POST.get("title", "")
-        authors_input = request.POST.get("authors", "")
-        url = request.POST.get("url", "")
-        imitates = request.POST.get("imitate", "")
-        lyrics = request.POST.get("lyrics", "")
-        is_original = bool(request.POST.get("is-original"))
-        is_deleted = bool(request.POST.get("is-deleted"))
-        is_joke = bool(request.POST.get("is-joke"))
-        is_inst = bool(request.POST.get("is-inst"))
-        is_subeana = bool(request.POST.get("is-subeana"))
-        is_draft = bool(request.POST.get("is-draft"))
-        
+    def get_base_context(self):
+        return {
+            "metatitle": f"{self.song.title}の編集",
+            "song": self.song,
+        }
+
+    def get(self, request, song_id):
+        allow_dup_url = request.GET.get('allow_dup_url', '')
+        if allow_dup_url:
+            cleaned = clean_url(allow_dup_url) or allow_dup_url
+            link = SongLink.set_allow_dup_for_url(cleaned)
+            if link:
+                send_discord(CONTACT_DISCORD_URL, f"重複許可したURL：{allow_dup_url}")
+        return render(request, 'subekashi/song_edit.html', self.get_base_context())
+
+    def post(self, request, song_id):
+        context = self.get_base_context()
+        form = SongEditForm(request.POST)
+
+        if not form.is_valid():
+            context["error"] = next(iter(form.errors.values()))[0]
+            return render(request, 'subekashi/song_edit.html', context)
+
+        title = form.cleaned_data['title']
+        authors_input = form.cleaned_data['authors']
+        url = form.cleaned_data['url']
+        imitates = form.cleaned_data['imitate']
+        lyrics = form.cleaned_data['lyrics']
+        is_original = form.cleaned_data['is_original']
+        is_deleted = form.cleaned_data['is_deleted']
+        is_joke = form.cleaned_data['is_joke']
+        is_inst = form.cleaned_data['is_inst']
+        is_subeana = form.cleaned_data['is_subeana']
+        is_draft = form.cleaned_data['is_draft']
+
         # URLのバリデーション
         cleaned_url = clean_url(url)
         cleaned_url_list = cleaned_url.split(",") if cleaned_url else []
         for cleaned_url_item in cleaned_url_list:
-            # 既に登録されているURLの場合は(ユニークでなければ)エラー
-            # TODO URLテーブルで実装したい
-            existing_song, _ = song_search({"url": cleaned_url_item})
-            existing_song = list(existing_song)       # existsやfirstはエラーになるので使えない
-            if url and existing_song and existing_song[0].id != song_id:
-                dataD["error"] = "URLは既に登録されています。"
-                return render(request, 'subekashi/song_edit.html', dataD)
-            
+            # allow_dup=Falseかつ自身以外の曲に紐づくURLが既に存在する場合はエラー
+            error = validate_song_url(cleaned_url_item, exclude_song_id=song_id)
+            if error:
+                context["error"] = error
+                return render(request, 'subekashi/song_edit.html', context)
+
             # 許可されていないメディアのURLならばエラー
             if not get_allow_media(cleaned_url_item):
                 contact_url = reverse('subekashi:contact')
-                dataD["error"] = f"URL：{cleaned_url_item}は信頼されていないURLと判断されました。<br>\
+                context["error"] = f"URL：{cleaned_url_item}は信頼されていないURLと判断されました。<br>\
                 <a href='{contact_url}?&category=提案&detail={cleaned_url_item} を登録できるようにしてください。' target='_blank'>お問い合わせ</a>にて、\
                 該当のURLを登録できるように、ご連絡ください。"
-                return render(request, 'subekashi/song_edit.html', dataD)
-
-        # 作者が空または空白のみの場合はエラー
-        if not authors_input.strip():
-            dataD["error"] = "作者は空白にできません。"
-            return render(request, 'subekashi/song_edit.html', dataD)
-
-        # タイトルが空の場合はエラー
-        if not title:
-            dataD["error"] = "タイトルが未入力です。"
-            return render(request, 'subekashi/song_edit.html', dataD)
+                return render(request, 'subekashi/song_edit.html', context)
 
         # DBに保存する値たち
         ip = get_ip(request)
@@ -77,146 +86,53 @@ def song_edit(request, song_id):
         # authorsフィールドの処理: カンマ区切りの作者をAuthorオブジェクトに変換
         author_names = cleaned_authors.split(',')
         author_objects = get_or_create_authors(author_names)
-        
-        # 自分自身や重複している曲は模倣元として登録できない
-        imitates_list = set(imitates.split(","))
-        imitates_list.discard(str(song_id))
-        imitates = ",".join(list(imitates_list)) if imitates else ""
-        
-        # 掲載拒否リストの読み込み
-        try:
-            from subekashi.constants.dynamic.reject import REJECT_LIST
-        except:
-            REJECT_LIST = []
-        
+
+        # 自分自身や重複は除外し、Song オブジェクトのリストに変換
+        imitate_songs = get_imitate_songs(imitates, song_id)
+
         # 掲載拒否作者か判断する
-        for author in author_objects:
-            if author.name in REJECT_LIST:
-                dataD["error"] = f"{author.name}さんの曲は登録することができません。"
-                return render(request, 'subekashi/song_edit.html', dataD)
+        reject_error = check_reject_list(author_objects)
+        if reject_error:
+            context["error"] = reject_error
+            return render(request, 'subekashi/song_edit.html', context)
 
-        # 模倣の編集
-        # TODO imitateテーブルを利用する
-        old_imitate_id_set = set(song.imitate.split(",")) - set([""])       # 元々の各模倣元のID
-        new_imitate_id_set = set(imitates.split(",")) - set([""])       # ユーザーが入力した各模倣元のID
+        fields = SongFields(
+            title=title,
+            lyrics=lyrics,
+            is_original=is_original,
+            is_deleted=is_deleted,
+            is_joke=is_joke,
+            is_inst=is_inst,
+            is_subeana=is_subeana,
+            is_draft=is_draft,
+        )
 
-        append_imitate_id_set = new_imitate_id_set - old_imitate_id_set     # 編集によって新しく追加された各模倣元のID
-        delete_imitate_id_set = old_imitate_id_set - new_imitate_id_set     # 編集によって削除された各模倣元のID
-
-        # 編集によって新しく追加された各模倣元先の模倣曲に編集した曲のsong_idを追加する
-        for append_imitate_id in append_imitate_id_set :
-            append_imitate = Song.objects.get(pk = append_imitate_id)
-            append_imitated_id_set = set(append_imitate.imitated.split(","))        # 模倣元先の模倣曲
-            append_imitated_id_set.add(str(song_id))        # 模倣元先の模倣曲に編集した曲のsong_idを追加する
-            
-            append_imitate.imitated = ",".join(append_imitated_id_set).strip(",")
-            append_imitate.save()
-            
-        # 編集によって削除された各模倣元先の模倣曲に編集した曲のsong_idを削除する
-        for delete_imitate_id in delete_imitate_id_set :
-            delete_imitate = Song.objects.get(pk = delete_imitate_id)
-            delete_imitated_id_set = set(delete_imitate.imitated.split(","))        # 模倣元先の模倣曲
-            if (delete_imitate_id != str(song_id)):
-                delete_imitated_id_set.remove(str(song_id))   # 模倣元先の模倣曲に編集した曲のsong_idを削除する
-            
-            delete_imitate.imitated = ",".join(delete_imitated_id_set).strip(",")
-            delete_imitate.save()
-        
-        # 変更内容のマークダウンと送信するDiscordの文言の作成
-        def yes_no(value):
-            return "はい" if value else "いいえ"
-
-        # song.imitateの形式をリンク付きタイトルの改行リストにする
-        def Ids2Info(ids):
-            song_id_list = ids.split(",") if ids else []
-            info = ""
-            for song_id in song_id_list:
-                song = Song.objects.get(id = song_id)
-                info += f"{song.title}\n"
-            return info[:-1]        # 最後の改行は不要
-
-        # songを更新する前にhistoryのために更新前後のsongの情報を記録しておく
-        COLUMNS = [
-            {"label": "タイトル", "before": song.title ,"after": title},
-            {"label": "作者", "before": song.authors_str(), "after": ", ".join([a.name for a in author_objects])},
-            {"label": "URL", "before": song.url ,"after": cleaned_url},
-            {"label": "オリジナル", "before": yes_no(song.isoriginal) ,"after": yes_no(is_original)},
-            {"label": "削除済み", "before": yes_no(song.isdeleted) ,"after": yes_no(is_deleted)},
-            {"label": "ネタ曲", "before": yes_no(song.isjoke) ,"after": yes_no(is_joke)},
-            {"label": "インスト曲", "before": yes_no(song.isinst) ,"after": yes_no(is_inst)},
-            {"label": "すべあな模倣曲", "before": yes_no(song.issubeana) ,"after": yes_no(is_subeana)},
-            {"label": "下書き", "before": yes_no(song.isdraft) ,"after": yes_no(is_draft)},
-            {"label": "模倣", "before": Ids2Info(song.imitate), "after": Ids2Info(imitates)},
-            {"label": "歌詞", "before": song.lyrics, "after": lyrics.replace("\r\n", "\n")},
-        ]
+        # Discordテキストとchangesを構築（song更新前に実行）
+        edit_title, changes, discord_text, changed_labels = build_edit_song_discord_text(
+            song_id, self.song, fields, author_objects, cleaned_url, imitate_songs,
+        )
 
         # songの更新
-        song.title = title
-        song.url = cleaned_url
-        song.lyrics = lyrics
-        song.imitate = imitates
-        song.isoriginal = is_original
-        song.isdeleted = is_deleted
-        song.isjoke = is_joke
-        song.isinst = is_inst
-        song.issubeana = is_subeana
-        song.isdraft = is_draft
-        song.post_time = timezone.now()
-        song.save()
+        update_song(self.song, fields, author_objects, imitate_songs, cleaned_url_list)
 
-        # authorsフィールドの更新
-        song.authors.set(author_objects)
-        
-        # History DBの変更内容とDisocrdの#新規作成・変更チャンネルに送る文の用意
-        changes = [["種類", "編集前", "編集後"]]
-        changed_labels = []
-        discord_text = f"編集されました\n{ROOT_URL}/songs/{song_id}/history\n\n"
-        for column in COLUMNS:
-            if column["before"] != column["after"]:     # ユーザーが編集時に変更した場合
-                label = column["label"]
-                changed_labels.append(label)
-
-                before = column.get("before", "なし")
-                after = column.get("after", "なし")
-
-                # 共通：Markdownテーブル
-                changes.append([label, before, after])
-
-                # Discord用テキスト
-                discord_text += f"**{label}**："
-                if label == "歌詞":
-                    discord_text += f"```{after}```\n"
-                elif label == "模倣":
-                    discord_text += f"\n{before} \n:arrow_down: \n{after}\n"
-                else:
-                    # beforeが存在する場合追記する
-                    if len(before) != 0:
-                        discord_text += f"`{before}` :arrow_right: "
-                    discord_text += f"`{after}`\n"
-                
-        title = f"{title}の{'と'.join(changed_labels)}を編集"
-        
-        if len(changed_labels) >= 1:
-            # 編集履歴を保存
-            editor, _ = Editor.objects.get_or_create(ip = ip)
-            history = History(
-                song = song,
-                title = title,
-                history_type = "new",
-                create_time = timezone.now(),
-                changes = changes,
-                editor = editor
-            )
-            history.save()
-            
+        if changed_labels:
+            editor = Editor.get_or_create_from_ip(ip)
             discord_text += f"編集者：`{editor}`"
-            
-            # Discordに送信し、送信できなければ削除し500ページに遷移
+
+            # 編集履歴を保存
+            History.create_for_song(
+                song=self.song,
+                title=edit_title,
+                history_type="edit",
+                changes=changes,
+                editor=editor,
+            )
+
+            # Discordに送信し、送信できなければ500ページに遷移
             is_ok = send_discord(NEW_DISCORD_URL, discord_text)
             if not is_ok:
                 return render(request, 'subekashi/500.html', status=500)
-        
+
         response = redirect(f'/songs/{song_id}?toast=edit')
         response["X-Robots-Tag"] = "noindex, nofollow"
         return response
-    return render(request, 'subekashi/song_edit.html', dataD)

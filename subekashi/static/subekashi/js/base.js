@@ -136,10 +136,16 @@ async function showToast(icon, text) {
     // 50文字越えの場合はlong用に
     if(text.length > 50) toastDiv.classList.add("long-time");
     iconI.className = icons[icon] ?? "";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "toast-close";
+    closeBtn.textContent = "✕";
+    closeBtn.addEventListener("click", () => toastDiv.remove());
+
     //組み立て
     contentP.appendChild(iconI);
     contentP.innerHTML += text;
     toastDiv.appendChild(contentP);
+    toastDiv.appendChild(closeBtn);
 
     const toastContainerEle = document.getElementById('toast-container');
     if(!toastContainerEle) {
@@ -166,19 +172,25 @@ async function getSongGuessers(text, to, signal, calling_func = () => {}) {
         return;
     }
 
+    const loadingEle = document.createElement("span");
+    loadingEle.classList.add("loading");
+    toEle.appendChild(loadingEle);
+
     try {
         const songGuessers = await exponentialBackoff(`html/song_guessers?guesser=${text}`, "getSongGuessers", calling_func);
         if (!songGuessers) return;
-        
+
         for (var songGuesser of songGuessers) {
             // キャンセルが要求されているか確認
             if (signal.aborted) {
                 return;
             }
-            
+
             appendSongGuesser(songGuesser, toEle);
+            toEle.appendChild(loadingEle);   // 常に末尾へ移動
             await sleep(0.05);
         }
+        loadingEle.remove();
     } catch (error) {
         console.error(error)
     }
@@ -186,16 +198,45 @@ async function getSongGuessers(text, to, signal, calling_func = () => {}) {
 
 // グローバルヘッダーの取得
 var globalHeaderEle, globalItemEles;
+const GLOBAL_HEADER_CACHE_KEY = "globalHeaderCache";
+const GLOBAL_HEADER_CACHE_TTL = 60 * 60 * 1000; // 1時間
+
 async function getGlobalHeader() {
+    let globalHeaderText;
     try {
-        var globalHeaderRes = await fetch("https://global-header.imicom.workers.dev/");
-    } catch ( error ) {
-        document.getElementById("pc-global-items-wrapper").innerHTML = "<p>界隈グローバルヘッダーエラー</p>";
-        document.getElementById("sp-global-items-wrapper").innerHTML = "<p>界隈グローバルヘッダーエラー</p>";
-        return;
+        const cached = localStorage.getItem(GLOBAL_HEADER_CACHE_KEY);
+        if (cached) {
+            const { text, timestamp } = JSON.parse(cached);
+            if (Date.now() - timestamp < GLOBAL_HEADER_CACHE_TTL) {
+                globalHeaderText = text;
+            }
+        }
+    } catch {
+        // localStorageが利用不可またはキャッシュが壊れていた場合は無視してfetchに進む
+        try { localStorage.removeItem(GLOBAL_HEADER_CACHE_KEY); } catch {}
     }
 
-    var globalHeaderText = await globalHeaderRes.text();
+    if (!globalHeaderText) {
+        document.getElementById("pc-global-items-wrapper").innerHTML = "<span class=\"loading loading-black\"></span>";
+        document.getElementById("sp-global-items-wrapper").innerHTML = "<span class=\"loading loading-black\"></span>";
+        let globalHeaderRes;
+        try {
+            globalHeaderRes = await fetch("https://global-header.imicom.workers.dev/");
+            if (!globalHeaderRes.ok) {
+                throw new Error(`HTTP error: ${globalHeaderRes.status}`);
+            }
+        } catch ( error ) {
+            document.getElementById("pc-global-items-wrapper").innerHTML = "<p>界隈グローバルヘッダーエラー</p>";
+            document.getElementById("sp-global-items-wrapper").innerHTML = "<p>界隈グローバルヘッダーエラー</p>";
+            return;
+        }
+        globalHeaderText = await globalHeaderRes.text();
+        try {
+            localStorage.setItem(GLOBAL_HEADER_CACHE_KEY, JSON.stringify({ text: globalHeaderText, timestamp: Date.now() }));
+        } catch {
+            // ストレージ容量超過などは無視
+        }
+    }
     globalHeaderEle = stringToHTML(globalHeaderText)
     globalItemEles = Array.from(globalHeaderEle.getElementsByClassName("imiN_list")[0].children)
     .slice(1, -1)
@@ -221,8 +262,7 @@ function formatGlobalHeaderItem(itemEle) {
 
 function setGlobalHeader(type) {
     var globalItemsWrapperEle = document.getElementById(`${type}-global-items-wrapper`);
-    globalItemsWrapperEle.firstChild.remove();
-    globalItemsWrapperEle.firstChild.remove();
+    globalItemsWrapperEle.innerHTML = "";
     globalItemEles.forEach(globalItemEle => {
         globalItemsWrapperEle.appendChild(globalItemEle.cloneNode(true));
     });
@@ -271,28 +311,6 @@ document.body.addEventListener('click', (event) => {
     isSpMenuOpen = false;
 });
 
-// tab_barをページ一番下までスクロールしたら非表示
-document.addEventListener("DOMContentLoaded", () => {
-    const tabBarEle = document.getElementById("tab_bar");
-
-    const isScrollable = document.documentElement.scrollHeight > window.innerHeight;
-    if (!isScrollable) {
-        tabBarEle.setAttribute("class", "tab_bar_suspend");
-    }
-
-    // スクロール時のイベントを設定
-    window.addEventListener("scroll", () => {
-        const scrollPosition = window.scrollY + window.innerHeight;
-        const bottomPosition = document.documentElement.scrollHeight;
-
-        // 一番下までスクロールされた場合は非表示、そうでない場合は表示
-        if ((scrollPosition >= bottomPosition - 1) && !isSpMenuOpen) {
-            tabBarEle.setAttribute("class", "tab_bar_suspend");
-        } else {
-            tabBarEle.removeAttribute("class", "tab_bar_suspend");
-        }
-    });
-});
 
 // CSRFの取得
 async function getCSRF() {
@@ -369,8 +387,8 @@ const TUTORIALS = {
     "lyrics": "歌詞を入力してください。<br>インスト曲の場合は入力は不要です。<br>形式は特に決まっていませんが、できるだけMVと同じように記述してくれると助かります。",
     "is-draft": "下書きとして投稿したい場合はチェックしてください。<br>入力途中だけど投稿したいときに利用してください。<br>下書きした内容は誰でも閲覧できる状態になります。",
     "delete": "開発者に記事の削除依頼を送ります。<br>実際に削除の対応をするまでに時間がかかる場合があります。",
-    "reply": "返信が必要な場合ここに、X(旧：Twitter)のアカウントID、もしくはDiscordのユーザーID、もしくはメールアドレスを入力してください。<br>掲載拒否のお問い合わせの場合入力が必須です。",
     "select": "詳細検索の選択肢である界隈曲の種類・ネタ曲・並び替えの状態を保存します。保存しない場合、選択肢は上から、「全て表示」、「全て表示」、「更新日が遅い順」になります。",
+    "is_limited": "作者の要望により全て歌詞の所為です。上で、検索にヒットしない状態になっています。<br>YouTubeの限定公開とは別のものです。"
 }
 
 function showTutorial(place) {
@@ -387,6 +405,14 @@ function deleteToastUrlQuery() {
     }
 }
 
+// 重複曲情報のHTMLを生成（song_new/song_edit共通）
+function makeSongInfoRowsHTML(songs) {
+    return songs.map(song => {
+        const songUrl = `${baseURL()}/songs/${song.id}`;
+        return `song ID：<a href="${songUrl}" target="_blank">${song.id}</a><br>タイトル：${escapeHtml(song.title)}<br>作者：${escapeHtml(getAuthorText(song))}`;
+    }).join('<br><br>');
+}
+
 // authorsフィールドから作者文字列を取得
 function getAuthorText(song) {
     return song.authors && song.authors.length > 0
@@ -396,7 +422,7 @@ function getAuthorText(song) {
 
 // 曲が未完成かどうか
 function isLack(song) {
-    if (!song.isdeleted && song.url === "") {
+    if (!song.is_deleted && (!song.url || song.url.length === 0)) {
         return true;
     }
 
@@ -405,11 +431,11 @@ function isLack(song) {
         ? song.authors.some(author => author.id === 1)
         : false;
 
-    if (!song.isoriginal && !song.issubeana && song.imitate === "" && hasSpecialAuthor) {
+    if (!song.is_original && !song.is_subeana && song.imitates.length === 0 && hasSpecialAuthor) {
         return true;
     }
 
-    if (!song.isinst && song.lyrics === "") {
+    if (!song.is_inst && song.lyrics === "") {
         return true;
     }
 
@@ -437,4 +463,17 @@ function autoScroll(deley) {
 // 読み込み時の実行
 window.onload = function() {
     getGlobalHeader();
+    applyDefokoLogo();
+}
+
+// 10000分の1の確率でヘッダーロゴをデフォ子に変更
+function applyDefokoLogo() {
+    if (Math.random() < 1 / 10000) {
+        var img = document.getElementById('header-logo-img');
+        if (!img) return;
+        img.src = baseURL() + "/static/subekashi/image/defoko20260205.gif";
+        img.alt = "デフォ子";
+        img.style.height = "60px";
+        img.removeAttribute('width');
+    }
 }

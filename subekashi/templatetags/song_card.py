@@ -3,6 +3,8 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.template.loader import render_to_string
 from subekashi.lib.url import get_all_media
+from subekashi.lib.discord import send_discord
+from config.settings import *
 
 
 register = template.Library()
@@ -10,7 +12,7 @@ register = template.Library()
 @register.simple_tag
 def get_author(song):
     # authorsフィールドから作者を取得
-    authors_list = list(song.authors.all())
+    authors_list = list(song.authors.all()[:2])
 
     # 合作なら
     if len(authors_list) >= 2:
@@ -18,7 +20,7 @@ def get_author(song):
     
     # 作者不明なら
     if not authors_list:
-        # TODO ここはありえないのでdiscordの通知を追加する
+        send_discord(ERROR_DISCORD_URL, f"作者が不明です： {ROOT_URL}/songs/{song.id}")
         return mark_safe('<i class="fas fa-user-circle"></i>作者不明')
     
     author = authors_list[0]
@@ -47,22 +49,22 @@ def get_view(song):
 
 @register.simple_tag
 def get_url(song):
-    urls = song.url.split(',') if song.url else ""
+    active_links = song.links.all()
     i_tags = ""
     
     # 非公開なら
-    if song.isdeleted:
+    if song.is_deleted:
         i_tags += "<i class='far fa-eye-slash'></i>"
     
     # 未登録なら
-    elif not urls:
+    elif not active_links.exists():
         edit_url = reverse('subekashi:song_edit', args=[song.id])
         return mark_safe(f'<object><a href="{edit_url}">URL未登録</a></object>')
     
     # URLを登録しているのなら
-    for url in urls:
-        icon = get_all_media(url)["icon"]
-        i_tags += f'<a href="{url}" target="_blank">{icon}</a>'
+    for link in active_links:
+        icon = get_all_media(link.url)["icon"]
+        i_tags += f'<a href="{link.url}" target="_blank">{icon}</a>'
         
     return mark_safe(f'<object>{i_tags}</object>')
         
@@ -73,11 +75,11 @@ def get_lyrics(song):
     # html特殊文字をエスケープ
     lyrics=lyrics.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
     # インスト曲なら
-    if not lyrics and song.isinst:
+    if not lyrics and song.is_inst:
         return mark_safe('<i class="fas fa-align-center"></i>インスト曲')
-    
+
     # 歌詞を登録していないのなら
-    if not lyrics and not song.isinst:
+    if not lyrics and not song.is_inst:
         edit_url = reverse('subekashi:song_edit', args=[song.id])
         return mark_safe(f'<object><a href="{edit_url}"><i class="fas fa-align-center"></i>歌詞未登録</a></object>')
     

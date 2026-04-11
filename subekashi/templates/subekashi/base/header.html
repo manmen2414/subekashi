@@ -2,7 +2,6 @@
 <header>
     <div id="pc-global-header">
         <div id="pc-global-items-wrapper" class="sansfont">
-            <p>界隈グローバルヘッダーの読み込み中...</p>
         </div>
         <div id="pc-global-message">
             <p id="pc-global-news"></p>
@@ -10,18 +9,20 @@
             <p class="pc-global-notice"></p>
         </div>
     </div>
-    
+
     <div id="subekashi-header">
-        {% now "Y-m-d" as today %}
-        {% if today == "2026-02-05" %}
-            <a href="{% url 'article:default_article' 'dekoko202602' %}">
-                <img name="thumbnail" src="{% static 'subekashi/image/defoko20260205.gif' %}" alt="デフォ子誕生祭2026年2月5日" style="height:60px" loading="lazy">
+        <div id="subekashi-header-top">
+            <a href="{% url 'subekashi:top' %}" id="header-logo-link">
+                <img name="thumbnail" id="header-logo-img" src="{% static 'subekashi/image/icon.png' %}" alt="全て歌詞の所為です。のロゴ" height="45" width="45" loading="lazy">
             </a>
-        {% else %}
-            <a href="{% url 'subekashi:top' %}">
-                <img name="thumbnail" src="{% static 'subekashi/image/icon.png' %}" alt="全て歌詞の所為です。のロゴ" height="45" width="45" loading="lazy">
-            </a>
+            {% if is_maintenance %}
+                <a href="{% url 'subekashi:top' %}">メンテナンス中です。</a>
+            {% else %}
+                <a href="{% url 'subekashi:top' %}">全て歌詞の所為です。</a>
+            {% endif %}
+        </div>
+        {% if pc_menu_position == "header" %}
+            {% include './pc_menu.html' %}
         {% endif %}
-        <a href="{% url 'subekashi:top' %}">全て歌詞の所為です。</a>
     </div>
 </header>

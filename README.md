@@ -15,6 +15,7 @@
 
 1\. 前提条件
 gitコマンドとpythonコマンドが使えることが前提です。  
+`python`コマンドが未定義の場合、`python3`等のコマンドを用いてください。  
   
 2\. クローン
 
@@ -38,8 +39,13 @@ python -m venv .env
   
 5\. 仮想環境の起動（必要に応じて）  
 
-```bash
+```bat
+@REM Windows用
 .env/Scripts/activate.ps1;
+```
+```bash
+# Linux用
+source .env/bin/activate
 ```
   
 6\. ライブラリのインストール  
@@ -50,7 +56,12 @@ pip install -r requirements.txt
   
 7\. local_setting.pyの作成  
 
+```bat
+@REM Windows用
+copy config/local_settings_sample.py config/local_settings.py
+```
 ```bash
+# Linux用
 cp config/local_settings_sample.py config/local_settings.py
 ```
 ※ cpコマンドを利用できない場合は、別のファイルをコピーするコマンドかエクスプローラーを利用してください。
@@ -109,8 +120,13 @@ python manage.py const
 1\. 仮想環境の起動（venvを利用している場合）  
 仮想環境`.env`を起動します。  
 
-```bash
+```bat
+@REM Windows用
 .env/Scripts/activate.ps1;
+```
+```bash
+# Linux用
+source .env/bin/activate
 ```
   
 2\. サーバー起動  
@@ -159,17 +175,20 @@ python manage.py runserver
 - `upload_time_lte`: アップロード日時の上限（ISO 8601形式）
 
 **真偽値フィルタ**
-- `issubeana`: すべあな曲かどうか
-- `isjoke`: ネタ曲かどうか
-- `isdraft`: 下書きかどうか
-- `isoriginal`: オリジナル模倣曲かどうか
-- `isinst`: インスト曲かどうか
-- `isdeleted`: 削除済みかどうか
-- `islack`: 不完全な曲（情報が欠けている曲）
+
+- `is_subeana`: すべあな曲かどうか
+- `is_joke`: ネタ曲かどうか
+- `is_draft`: 下書きかどうか
+- `is_original`: オリジナル模倣曲かどうか
+- `is_inst`: インスト曲かどうか
+- `is_deleted`: 削除済みかどうか
+- `is_limited`: すべかし内で限定公開かどうか
+- `is_lack`: 不完全な曲（情報が欠けている曲）
 
 **特殊フィルタ**
-- `imitate`: 模倣元（カンマ区切りで複数指定可、最大10000文字）
-- `imitated`: 被模倣（カンマ区切りで複数指定可、最大10000文字）
+
+- `imitate`: 模倣元の曲のsong ID（整数）
+- `imitated`: 被模倣の曲のsong ID（整数）
 - `guesser`: 候補（タイトルとチャンネルを検索、最大500文字）
 - `mediatypes`: メディアタイプ（正規表現対応、最大100文字）
 
@@ -211,6 +230,10 @@ python manage.py runserver
         },
         ...
       ],
+      "url": [
+        "https://youtu.be/VIDEO-00000",
+        "https://youtu.be/VIDEO-00001"
+      ],
       ...
     }
   ]
@@ -226,7 +249,7 @@ python manage.py runserver
 **個別取得時（/api/song/{song_id}）**
 ```json
 {
-  "song_id": 1,
+  "id": 1,
   "title": "曲名",
   "authors": [
     {
@@ -235,9 +258,19 @@ python manage.py runserver
     },
     ...
   ],
+  "url": [
+    "https://youtu.be/VIDEO-00000",
+    "https://youtu.be/VIDEO-00001"
+  ],
   ...
 }
 ```
+
+**`url`フィールドについて**
+`url`は登録されたURLの配列です。複数のURLが登録されている場合はすべて含まれます。URLが未登録の場合は空配列`[]`が返されます。
+
+**`imitates` / `imitateds`フィールドについて**
+`imitates`はこの曲が模倣している曲のsong IDの整数配列です。`imitateds`はこの曲を模倣している曲のsong IDの整数配列（`imitates`の逆参照）です。いずれも模倣関係がない場合は空配列`[]`が返されます。
 
 ### Ad API
 **エンドポイント**: [https://lyrics.imicomweb.com/api/ad](https://lyrics.imicomweb.com/api/ad)
@@ -273,7 +306,7 @@ python manage.py runserver
 
 その他、issueの起票だけでも助かります。  
 マージの場所はmainでお願いします。  
-※ このリポジトリには[Amazon Q](https://aws.amazon.com/jp/q/)がインストールされています。(特に別途対応は不要です)  
+PRにはClaude Code Actionsを使用しております。  
 
 ## リンク集
 
