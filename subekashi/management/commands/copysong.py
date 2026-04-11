@@ -1,10 +1,9 @@
 from django.core.management.base import BaseCommand
-from subekashi.models import Song, Author
+from subekashi.models import Song, Author, SongLink
 from typing import Dict
 import urllib.request
 import json
 
-# TODO 本番環境にAuthorを適用後copysongカスタムコマンドの動作確認
 class Command(BaseCommand):
     help = "公開環境のすべかしから指定した曲またはすべての曲をコピーする。すでにあるファイルは上書きしない。"
     original_song_api = "https://lyrics.imicomweb.com/api/song/"
@@ -26,46 +25,73 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"{len(result)}曲を取得しました。"))
 
         songs = []
-        all_authors_data = []
         for songjson in result:
             song = self.json_to_song(songjson)
             if song is not None:
                 songs.append(song)
-                if hasattr(song, '_authors_data'):
-                    all_authors_data.extend(song._authors_data)
 
         # Songを一括作成
         Song.objects.bulk_create(songs)
         self.stdout.write(self.style.SUCCESS(f"{len(songs)}曲を作成しました。"))
 
-        # Authorを一括作成
-        self.stdout.write("Authorsを作成中です...")
-        unique_authors = {(a['id'], a['name']) for a in all_authors_data}
-        authors_to_create = []
-        for author_id, name in unique_authors:
-            if not Author.objects.filter(id=author_id).exists():
-                authors_to_create.append(Author(id=author_id, name=name))
-
-        if authors_to_create:
-            Author.objects.bulk_create(authors_to_create, ignore_conflicts=True)
-            self.stdout.write(f"  {len(authors_to_create)}件のAuthorを作成しました。")
-
-        # Song-Author関係を一括作成
-        self.stdout.write("Song-Author関係を設定中です...")
-        song_authors = []
+        # 全songのauthor名・URLを収集
+        author_name_to_songs = {}
+        url_to_songs = {}
         for song in songs:
-            if hasattr(song, '_authors_data'):
-                for author_data in song._authors_data:
-                    song_authors.append(
-                        Song.authors.through(
-                            song_id=song.id,
-                            author_id=author_data['id']
-                        )
-                    )
+            for author_data in getattr(song, '_authors_data', []):
+                author_name_to_songs.setdefault(author_data['name'], []).append(song)
+            for url in getattr(song, '_urls_data', []):
+                url_to_songs.setdefault(url, []).append(song)
 
-        if song_authors:
-            Song.authors.through.objects.bulk_create(song_authors, ignore_conflicts=True)
-            self.stdout.write(f"  {len(song_authors)}件の関係を作成しました。")
+        # Authorを一括作成（get_or_createと同等）
+        self.stdout.write("Author関係を設定中です...")
+        all_names = set(author_name_to_songs.keys())
+        existing_names = set(Author.objects.filter(name__in=all_names).values_list('name', flat=True))
+        new_authors = [Author(name=name) for name in all_names if name not in existing_names]
+        if new_authors:
+            Author.objects.bulk_create(new_authors, ignore_conflicts=True)
+            self.stdout.write(f"  {len(new_authors)}件のAuthorを作成しました。")
+        name_to_author = {a.name: a for a in Author.objects.filter(name__in=all_names)}
+        song_author_rows = [
+            Song.authors.through(song_id=song.id, author_id=name_to_author[name].id)
+            for name, songs_for_name in author_name_to_songs.items()
+            for song in songs_for_name
+            if name in name_to_author
+        ]
+        if song_author_rows:
+            Song.authors.through.objects.bulk_create(song_author_rows, ignore_conflicts=True)
+
+        # SongLinkを一括作成（get_or_createと同等）
+        self.stdout.write("SongLink関係を設定中です...")
+        all_urls = set(url_to_songs.keys())
+        existing_urls = set(SongLink.objects.filter(url__in=all_urls).values_list('url', flat=True))
+        new_links = [SongLink(url=url) for url in all_urls if url not in existing_urls]
+        if new_links:
+            SongLink.objects.bulk_create(new_links, ignore_conflicts=True)
+            self.stdout.write(f"  {len(new_links)}件のSongLinkを作成しました。")
+        url_to_link = {l.url: l for l in SongLink.objects.filter(url__in=all_urls)}
+        song_link_rows = [
+            SongLink.songs.through(songlink_id=url_to_link[url].id, song_id=song.id)
+            for url, songs_for_url in url_to_songs.items()
+            for song in songs_for_url
+            if url in url_to_link
+        ]
+        if song_link_rows:
+            SongLink.songs.through.objects.bulk_create(song_link_rows, ignore_conflicts=True)
+
+        # imitates関係を一括作成
+        self.stdout.write("imitates関係を設定中です...")
+        all_target_ids = {tid for song in songs for tid in getattr(song, '_imitates_data', [])}
+        existing_ids = set(Song.objects.filter(pk__in=all_target_ids).values_list('id', flat=True))
+        imitate_rows = [
+            Song.imitates.through(from_song_id=song.id, to_song_id=target_id)
+            for song in songs
+            for target_id in getattr(song, '_imitates_data', [])
+            if target_id in existing_ids
+        ]
+        if imitate_rows:
+            Song.imitates.through.objects.bulk_create(imitate_rows, ignore_conflicts=True)
+            self.stdout.write(f"  {len(imitate_rows)}件のimitates関係を作成しました。")
 
         self.stdout.write(self.style.SUCCESS(f"処理が完了しました。"))
 
@@ -88,7 +114,10 @@ class Command(BaseCommand):
             song.save()
             # authorsを設定
             self._set_song_authors(song)
-            
+            # SongLinkを設定
+            self._set_song_links(song)
+            # imitatesを設定（参照先が存在しない場合はスキップ）
+            self._set_song_imitates(song)
 
     def _set_song_authors(self, song):
         """Songにauthorsを設定する"""
@@ -98,14 +127,36 @@ class Command(BaseCommand):
             return
 
         for author_data in song._authors_data:
-            # AuthorをIDとnameで取得または作成
+            # nameはUNIQUEなのでnameで取得または作成
             author, created = Author.objects.get_or_create(
-                id=author_data['id'],
-                defaults={'name': author_data['name']}
+                name=author_data['name'],
             )
-            if created:
-                self.stdout.write(f"  Author ID={author.id}: {author.name} を作成しました。")
             song.authors.add(author)
+
+    def _set_song_links(self, song):
+        """SongにSongLinkを設定する"""
+        if song is None:
+            return
+        if not hasattr(song, '_urls_data'):
+            return
+
+        for url in song._urls_data:
+            link, _ = SongLink.objects.get_or_create(url=url)
+            link.songs.add(song)
+
+    def _set_song_imitates(self, song):
+        """Songにimitatesを設定する（存在しないIDはスキップ）"""
+        if not hasattr(song, '_imitates_data') or not song._imitates_data:
+            return
+
+        existing = Song.objects.filter(pk__in=song._imitates_data)
+        existing_ids = set(existing.values_list('pk', flat=True))
+        song.imitates.set(existing)
+
+        for target_id in set(song._imitates_data) - existing_ids:
+            self.stdout.write(self.style.WARNING(
+                f"  [{song.id}] 模倣元ID {target_id} はローカルに存在しないためスキップしました。"
+            ))
 
     def json_to_song(self, songjson: Dict):
         if Song.objects.filter(pk=songjson["id"]).exists():
@@ -115,11 +166,26 @@ class Command(BaseCommand):
         # authorsフィールドを分離（ManyToManyFieldは保存後に設定する必要がある）
         authors_data = songjson.pop('authors', [])
 
+        # urlはSongモデルのフィールドではなくSongLinkで管理するため分離
+        urls_data = songjson.pop('url', [])
+
+        # imitates/imitatedsはManyToManyFieldのため保存後に設定する必要がある
+        imitates_data = songjson.pop('imitates', [])
+        songjson.pop('imitateds', [])  # 逆参照は imitates から自動管理されるため不要
+
         # Songオブジェクトを作成
         song = Song(**songjson)
 
-        # authorsデータを一時的に保存（保存後に設定するため）
+        # authors/urls/imitatesデータを一時的に保存（保存後に設定するため）
         song._authors_data = authors_data
+        # 旧API: url は "url1,url2" 形式の文字列、新API: リスト
+        if isinstance(urls_data, list):
+            song._urls_data = urls_data
+        elif isinstance(urls_data, str) and urls_data:
+            song._urls_data = [u.strip() for u in urls_data.split(',') if u.strip()]
+        else:
+            song._urls_data = []
+        song._imitates_data = imitates_data if isinstance(imitates_data, list) else []
 
         return song
 

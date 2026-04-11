@@ -4,40 +4,42 @@ from subekashi.lib.discord import send_discord
 from urllib.parse import urlparse, urlunparse
 import re
 
+_YOUTUBE_RE = re.compile(
+    r'https?://(?:www\.|m\.)?(?:youtube\.com/(?:.*[?&]v=|shorts/)|youtu\.be/)([a-zA-Z0-9_-]{11})'
+)
 
-# TODO リファクタリング
-# YouTubeの動画IDのパターンマッチ
-def re_youtube_url(url):
-    match = re.search(r'(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:.*[?&]v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})', url)
-    return match    
+_ALLOW_MEDIA_RES = [(re.compile(m["regex"]), m) for m in ALLOW_MEDIAS]
+_ALL_MEDIA_RES = [(re.compile(m["regex"]), m) for m in ALL_MEDIAS]
+
 
 # YouTubeの動画URLかどうか
 def is_youtube_url(url):
-    match = re_youtube_url(url)
-    return not match is None
+    return _YOUTUBE_RE.search(url) is not None
+
 
 def get_youtube_id(url):
-    # もしYouTubeの動画IDではなかったら
-    if not is_youtube_url(url):
-        return url
-    
-    match = re_youtube_url(url)
-    return match.group(1)
+    match = _YOUTUBE_RE.search(url)
+    return match.group(1) if match else url
+
 
 # YouTubeの動画URLを短縮する
 def format_youtube_url(url):
-    # もしYouTubeの動画IDではなかったら
-    if not is_youtube_url(url):
+    match = _YOUTUBE_RE.search(url)
+    if not match:
         return url
-    
-    return f"https://youtu.be/{get_youtube_id(url)}"
+    return f"https://youtu.be/{match.group(1)}"
+
 
 # XのURLのクエリを削除
 def format_x_url(url):
-    url = url.replace("https://twitter.com", "https://x.com")
     parsed_url = urlparse(url)
-    cleaned_url = urlunparse(parsed_url._replace(query='', fragment=''))
-    return cleaned_url
+
+    # X/TwitterのURLのみ処理
+    if parsed_url.netloc not in ('twitter.com', 'x.com'):
+        return url
+
+    return urlunparse(parsed_url._replace(scheme='https', netloc='x.com', query='', fragment=''))
+
 
 # URLを短縮しフォーマットする
 def clean_url(urls):
@@ -47,36 +49,37 @@ def clean_url(urls):
     url_list = urls.split(",")
     url_list = list(map(format_youtube_url, url_list))
     url_list = list(map(format_x_url, url_list))
+    url_list = [u.rstrip('/') for u in url_list]
     return ",".join(url_list)
+
 
 # urlが許可されているドメインならその情報を返す
 # 許可されていないならFalseを返す
 def get_allow_media(url):
     domain = urlparse(url).netloc
-    
-    for i, media in enumerate(ALLOW_MEDIAS):
-        if bool(re.search(media["regex"], domain)):
-            return ALLOW_MEDIAS[i]
-    
+
+    for pattern, media in _ALLOW_MEDIA_RES:
+        if pattern.search(domain):
+            return media
+
     return False
+
 
 # 全urlのドメインの情報を返す
 # Falseを返すことはない
 def get_all_media(url):
     domain = urlparse(url).netloc
-    allow_medias_size = len(ALL_MEDIAS)
-    
-    for i, media in enumerate(ALL_MEDIAS):
-        re_allow = re.search(media["regex"], domain)
-        
-        # URLが許可されているのならそのドメイン情報を返す
-        if bool(re_allow) and ((i + 1) != allow_medias_size):
-            return ALL_MEDIAS[i]
-        
-        # URLが許可されていないのならdiscordに通知してそのドメイン情報を返す
-        if bool(re_allow) and ((i + 1) == allow_medias_size):
+    last_index = len(_ALL_MEDIA_RES) - 1
+
+    for i, (pattern, media) in enumerate(_ALL_MEDIA_RES):
+        if not pattern.search(domain):
+            continue
+
+        # 最後のエントリは想定外URLのフォールバック
+        if i == last_index:
             send_discord(ERROR_DISCORD_URL, f"想定外のURLが添付されました：{url}")
-            return ALL_MEDIAS[i]
-    
-    send_discord(ERROR_DISCORD_URL, f"get_all_mediaにエラーが発生しました")
+
+        return media
+
+    send_discord(ERROR_DISCORD_URL, "get_all_mediaにエラーが発生しました")
     return False

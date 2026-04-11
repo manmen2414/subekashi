@@ -1,89 +1,113 @@
 from django.shortcuts import render
+from django.views import View
 from subekashi.constants.constants import ALL_MEDIAS, LONG_TERM_COOKIE_AGE
 
 
 # Cookieに保存するフォームの設定
 COOKIE_FORMS = {
     'isdetail': {
-        'query_name': 'isdetail',
         'values': {'True', 'False'},
         'default': 'False'
     },
     'songrange': {
-        'query_name': 'issubeana',
         'values': {'all', 'subeana', 'xx'},
         'default': 'all'
     },
     'jokerange': {
-        'query_name': 'isjoke',
         'values': {'on', 'off', 'only'},
         'default': 'on'
     },
     'sort': {
-        'query_name': 'sort',
         'values': {'id', '-id', 'post_time', '-post_time', 'upload_time', '-upload_time', '-view', 'view', '-like', 'like', 'random'},
         'default': '-post_time'
     }
 }
 
 # チェックボックス
-BOOL_FORMS = ["issubeana", "isjoke", "islack", "isdraft", "isoriginal", "isinst", "isdeleted"]
+BOOL_FORMS = ["is_subeana", "is_joke", "is_lack", "is_draft", "is_original", "is_inst", "is_deleted"]
 
 # 折りたたまれていないメディアタイプ
 DISPLAY_MEDIA_INDEX = 5
 
-def songs(request):
-    dataD = {
-        "metatitle" : "一覧と検索",
-        "ALL_MEDIAS": ALL_MEDIAS[:-1],     # 最後の許可されていないURLのドメイン情報は不要
-        "display_media_index": DISPLAY_MEDIA_INDEX
-    }
 
-    # POSTリクエストの場合はGET、それ以外はGET
-    REQUEST_DATA = request.POST if request.method == 'POST' else request.GET
-    COOKIES = request.COOKIES
-    cookies_to_set = {}
+class SongsView(View):
+    def get(self, request):
+        return self._handle(request)
 
-    # is_saved_selectの設定を確認
-    is_saved_select = COOKIES.get('is_saved_select', 'on')
+    def post(self, request):
+        return self._handle(request)
 
-    for form_name, form_config in COOKIE_FORMS.items():
-        query_name = form_config['query_name']
-        default_value = form_config['default']
-        allowed_values = form_config['values']
+    def _handle(self, request):
+        context = {
+            "metatitle": "一覧と検索",
+            "ALL_MEDIAS": ALL_MEDIAS[:-1],     # 最後の許可されていないURLのドメイン情報は不要
+            "display_media_index": DISPLAY_MEDIA_INDEX
+        }
 
-        if REQUEST_DATA.get(query_name):
-            value = REQUEST_DATA[query_name]
-            # 許可された値に対してバリデーションを実行
-            if value not in allowed_values:
-                dataD[form_name] = default_value  # 不正な値の場合はデフォルト値を使用
-            else:       # URLクエリやユーザーのCOOKIE_FORMSの変更の場合はcookieに値を保存するcookies_to_setに書き込む
-                dataD[form_name] = value
-                # is_saved_selectがonの場合のみcookieに保存
-                if is_saved_select == 'on':
-                    cookies_to_set[f"search_{form_name}"] = value
-        else:
-            # is_saved_selectがoffの場合はcookieを無視してデフォルト値を使用
-            if is_saved_select == 'off':
-                dataD[form_name] = default_value
+        # POSTリクエストの場合はPOST、それ以外はGET
+        REQUEST_DATA = request.POST if request.method == 'POST' else request.GET
+        COOKIES = request.COOKIES
+        cookies_to_set = {}
+
+        # is_saved_selectの設定を確認
+        is_saved_select = COOKIES.get('is_saved_select', 'on')
+
+        for form_name, form_config in COOKIE_FORMS.items():
+            default_value = form_config['default']
+            allowed_values = form_config['values']
+
+            if REQUEST_DATA.get(form_name):
+                value = REQUEST_DATA[form_name]
+                # 許可された値に対してバリデーションを実行
+                if value not in allowed_values:
+                    context[form_name] = default_value  # 不正な値の場合はデフォルト値を使用
+                else:       # URLクエリやユーザーのCOOKIE_FORMSの変更の場合はcookieに値を保存するcookies_to_setに書き込む
+                    context[form_name] = value
+                    # is_saved_selectがonの場合のみcookieに保存
+                    if is_saved_select == 'on':
+                        cookies_to_set[f"search_{form_name}"] = value
             else:
-                cookie_value = COOKIES.get(f"search_{form_name}", default_value)
-                dataD[form_name] = cookie_value
+                # is_saved_selectがoffの場合はcookieを無視してデフォルト値を使用
+                if is_saved_select == 'off':
+                    context[form_name] = default_value
+                else:
+                    cookie_value = COOKIES.get(f"search_{form_name}", default_value)
+                    context[form_name] = cookie_value
 
-    # チェックボックスのURLクエリ対応
-    for filter in BOOL_FORMS:
-        dataD[filter] = bool(REQUEST_DATA.get(filter))
+        # チェックボックスのURLクエリ対応
+        for filter in BOOL_FORMS:
+            raw = REQUEST_DATA.get(filter)
+            if raw is None:
+                continue
+            value_lower = raw.lower()
+            if filter == "is_subeana":
+                songrange_value = "subeana" if value_lower in ["true", "1"] else "xx"
+                context["songrange"] = songrange_value
+                if is_saved_select == 'on':
+                    cookies_to_set["search_songrange"] = songrange_value
+            elif filter == "is_joke":
+                if value_lower in ["true", "1", "only"]:
+                    jokerange_value = "only"
+                elif value_lower in ["all", "on"]:
+                    jokerange_value = "on"
+                else:
+                    jokerange_value = "off"
+                context["jokerange"] = jokerange_value
+                if is_saved_select == 'on':
+                    cookies_to_set["search_jokerange"] = jokerange_value
+            else:
+                context[filter] = value_lower in ["true", "1"]
 
-    response = render(request, "subekashi/songs.html", dataD)
+        response = render(request, "subekashi/songs.html", context)
 
-    # 実際にCOOKIEに保存
-    for cookie_name, cookie_value in cookies_to_set.items():
-        response.set_cookie(
-            cookie_name,
-            cookie_value,
-            max_age=LONG_TERM_COOKIE_AGE,
-            path='/',
-            samesite='Lax'
-        )
+        # 実際にCOOKIEに保存
+        for cookie_name, cookie_value in cookies_to_set.items():
+            response.set_cookie(
+                cookie_name,
+                cookie_value,
+                max_age=LONG_TERM_COOKIE_AGE,
+                path='/',
+                samesite='Lax'
+            )
 
-    return response
+        return response

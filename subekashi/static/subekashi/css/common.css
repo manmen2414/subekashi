@@ -39,11 +39,27 @@ body {
 
 /* ヘッダー */
 header {
-    z-index: 9999;
+    z-index: 1000;
     height: auto;
     width: 100%;
     background-color: #000;
     border-bottom: solid 4px #fff;
+}
+
+@media (min-width: 961px) {
+    body[data-pc-menu="header"] header {
+        position: sticky;
+        top: -90px; /* -(#pc-global-items-wrapper 30px + #subekashi-header-top 60px) */
+    }
+
+    body[data-pc-menu="header"] header:has(#pc-header-menu:hover) {
+        border-bottom-color: #000;
+        transition-delay: 0.2s;
+    }
+
+    body[data-pc-menu="header"] #subekashi-header {
+        padding-bottom: 48px; /* #pc-header-menu のアイコン行の高さ分を確保 */
+    }
 }
 
 @media (max-width: 960px) {
@@ -119,12 +135,20 @@ header {
 
 #subekashi-header {
     display: flex;
+    flex-direction: column;
     position: relative;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 1;
+}
+
+#subekashi-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     height: 60px;
+    width: 100%;
 }
 
 #subekashi-header img {
@@ -134,16 +158,118 @@ header {
     border-radius:50%;
 }
 
-#subekashi-header a {
+#subekashi-header-top a {
     display: inline-block;
-    vertical-align: top; 
+    vertical-align: top;
     font-size: 32px;
     color: #FFF;
     text-decoration: none;
 }
 
-/* サイドバー */
-aside {
+/* PCヘッダーメニュー */
+#pc-header-menu {
+    position: absolute;
+    top: 60px; /* #subekashi-header-top の高さ分 */
+    left: 0;
+    right: 0;
+    background-color: #000;
+    overflow: hidden;
+}
+
+@media (max-width: 960px) {
+    #pc-header-menu {
+        display: none;
+    }
+}
+
+#pc-header-menu table {
+    display: flex;
+    border: 0;
+    width: 100%;
+    border-spacing: 0;
+}
+
+#pc-header-menu tbody {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+}
+
+#pc-header-menu tr {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    transition: background-color 300ms ease;
+}
+
+#pc-header-menu tr:hover {
+    background-color: #ffffff33;
+}
+
+#pc-header-menu td {
+    display: block;
+    padding: 0;
+    width: 100%;
+    flex: 1;
+}
+
+#pc-header-menu a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    white-space: nowrap;
+    text-decoration: none;
+    padding: 4px 12px;
+    font-size: 22px;
+    color: #fff;
+    width: 100%;
+    box-sizing: border-box;
+    height: 100%;
+}
+
+#pc-header-menu i {
+    display: block;
+    width: 1em;
+    margin: 0.3em auto;
+    text-align: center;
+}
+
+#pc-header-menu p {
+    font-family: 'k8x12s';
+    writing-mode: vertical-rl;
+    font-size: 15px;
+    line-height: 1;
+    color: #777;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    margin: 0;
+    transition: max-height 300ms ease, opacity 300ms ease;
+}
+
+#pc-header-menu:hover p {
+    max-height: 200px;
+    opacity: 1;
+    transition-delay: 0.2s;
+}
+
+#pc-header-menu tr:hover p {
+    color: #fff;
+}
+
+#pc-header-menu .fa-envelope {
+    margin-bottom: 3px !important;
+}
+
+#pc-header-menu .fa-robot {
+    margin-left: -2px !important;
+    margin-right: 2px !important;
+}
+
+
+/* PCサイドメニュー (aside位置の場合) */
+body[data-pc-menu="aside"] aside {
     display: block;
     position: fixed;
     top: 50%;
@@ -152,71 +278,63 @@ aside {
     font-size: 32px;
     width: 1.25em;
     overflow-x: hidden;
-    background-color: #111111aa;
+    background-color: #111111cc;
     z-index: 99;
     transition: all 300ms 0s ease;
 }
 
 @media (max-width: 960px) {
-    aside {
+    body[data-pc-menu="aside"] aside {
         display: none;
     }
 }
 
-aside:hover {
-    width: 7.5em
+body[data-pc-menu="aside"] aside:hover {
+    width: 7.5em;
 }
 
-aside table {
+body[data-pc-menu="aside"] aside table {
     border: 0px none;
     width: 100%;
     border-spacing: 0;
 }
 
-aside td {
+body[data-pc-menu="aside"] aside td {
     padding: 2px 0;
 }
 
-aside tr:hover {
+body[data-pc-menu="aside"] aside tr:hover {
     background-color: #ffffff33;
 }
 
-aside tr td:nth-child(1) i {
-    display: inline-block;
-    width: 50px;
-    margin: 0 auto;
-    text-align: center;
-}
-
-aside a {
-    display: block;
+body[data-pc-menu="aside"] aside a {
+    display: flex;
+    align-items: center;
     white-space: nowrap;
     text-decoration: none;
-    padding: 0.3em 0;
 }
 
-aside i {
+body[data-pc-menu="aside"] aside i {
     width: 1em;
     margin: 0.5em;
+    text-align: center;
+    flex-shrink: 0;
 }
 
-aside i::before {
-    width: 1em;
-}
-
-aside p {
+body[data-pc-menu="aside"] aside p {
     display: inline-block;
-    margin-left: -10px;
+    font-size: 22px;
     opacity: 0;
+    margin-left: -10px;
     transition: all 300ms 0s ease;
 }
 
-aside:hover p {
+body[data-pc-menu="aside"] aside:hover p {
     margin-left: 0;
     opacity: 1;
 }
 
-aside tr:hover p {
+body[data-pc-menu="aside"] aside a:hover p {
     text-decoration: underline 2px #fff;
 }
 
@@ -253,9 +371,9 @@ aside tr:hover p {
     height: 70vh;
     width: 100vw;
     bottom: 0;
-    background-color: #111111aa;
+    background-color: #111111cc;
     border-top: solid #ffffffaa 2px;
-    padding: 1em 0;
+    padding: 1em 0 50px;
     overflow-y: scroll;
     z-index: 999;
     transition: display 0.3s ease;
@@ -302,14 +420,26 @@ aside tr:hover p {
     }
 }
 
-.tab_bar_suspend {
-    bottom: 32px !important;
-}
-
 #tab_bar i {
     font-size: 30px;
     margin: 0 5vw;
     cursor: pointer;
+}
+
+#sp_menu_footer {
+    width: 100%;
+    height: 32px;
+    background-color: #2f3a44;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#sp_menu_footer p, #sp_menu_footer a, #sp_menu_footer i {
+    text-align: center;
+    font-size: 15px;
+    line-height: 15px;
+    margin: 5px 5px;
 }
 
 #sp-global-header {
@@ -358,11 +488,28 @@ h1 {
     color: #FFF;
     font-size: 40px;
     font-weight: lighter;
-    margin: 60px 0 5px 0;
+    margin: 60px 0 0 0;
+}
+
+h1::after {
+    content: "";
+    display: block;
+    height: 8px;
+    width: 150px;
+    margin: 5px auto 25px auto;
+    background-color: #fff;
 }
 
 h2 {
     font-size: 37.5px;
+    line-height: 32px;
+    color: #FFF;
+    margin-top: 10px;
+    font-weight: lighter;
+}
+
+h3 {
+    font-size: 32px;
     line-height: 32px;
     color: #FFF;
     margin-top: 10px;
@@ -432,16 +579,8 @@ a {
     margin-right: 10px;
 }
 
-.underline {
-    text-align: center;
-    height: 8px;
-    width: 150px;
-    margin: 0 auto 25px auto;
-    background-color: #fff;
-}
-
 @media (max-width: 640px) {
-    .underline {
+    h1::after {
         margin-bottom: 15px;
     }
 }
@@ -544,12 +683,83 @@ details h3 {
     font-size: 30px;
 }
 
-#loading, #next-page-loading {
-    display: block;
-    width: 120px;
-    margin: 0 auto;
+@keyframes loading-dot-fade {
+    0%   { opacity: 0; }
+    30%  { opacity: 1; }
+    60%  { opacity: 1; }
+    80%  { opacity: 0; }
+    100% { opacity: 0; }
 }
 
+@keyframes loading-dot-move {
+    0%   { transform: translateX(0);     animation-timing-function: ease-in; }
+    50%  { transform: translateX(53px);  animation-timing-function: ease-out; }
+    100% { transform: translateX(106px); }
+}
+
+@keyframes loading-bg-fade {
+    0%   { color: rgba(255,255,255,0); }
+    30%  { color: rgba(255,255,255,1); }
+    60%  { color: rgba(255,255,255,1); }
+    80%  { color: rgba(255,255,255,0); }
+    100% { color: rgba(255,255,255,0); }
+}
+
+@keyframes loading-bg-move {
+    0%   { background-position: 0px center;  animation-timing-function: ease-in; }
+    50%  { background-position: 53px center; animation-timing-function: ease-out; }
+    100% { background-position: 106px center; }
+}
+
+.loading, #next-page-loading {
+    display: block;
+    position: relative;
+    width: 120px;
+    height: 14px;
+    margin: 0 auto;
+    background-image: radial-gradient(circle 7px at center, currentColor 100%, transparent 100%);
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    animation:
+        loading-bg-fade 1.2s linear -0.8s infinite,
+        loading-bg-move 1.2s linear -0.8s infinite;
+}
+
+.loading::before,
+.loading::after,
+#next-page-loading::before,
+#next-page-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: white;
+    opacity: 0;
+}
+
+.loading::before, #next-page-loading::before {
+    animation:
+        loading-dot-fade 1.2s linear -0.4s infinite,
+        loading-dot-move 1.2s linear -0.4s infinite;
+}
+
+.loading::after, #next-page-loading::after {
+    animation:
+        loading-dot-fade 1.2s linear 0s infinite,
+        loading-dot-move 1.2s linear 0s infinite;
+}
+
+
+.loading-black {
+    color: black;
+}
+.loading-black::before,
+.loading-black::after {
+    background: black;
+}
 
 /* フォーム */
 .form-col {
@@ -824,6 +1034,29 @@ input::placeholder {
     line-height: normal;
 }
 
+.toast-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: #555;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    transition: color 0.15s;
+}
+
+.toast-close:hover {
+    background: none;
+    color: #111;
+}
+
 .toast a {
     text-decoration: underline 2px #111;
 }
@@ -856,20 +1089,20 @@ footer a {
     margin: 0 1em;
 }
 
-.fa-history {
-    display: block;
-    font-size: 15px;
-    line-height: 15px;
-    margin-right: 0.5em;
-}
-
 @media(max-width: 960px) {
     #pc_version {
         display: none;
+    }
+
+    footer {
+        position: static;
     }
 
     footer a {
         margin-left: 1em;
     }
 
+    #footer-wrapper footer {
+        display: none;
+    }
 }

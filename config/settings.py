@@ -5,9 +5,7 @@ from .local_settings import *
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "subekashi" ,"static"),
-]
+STATICFILES_DIRS = []
 
 ROOT_URL = "http://subekashi.localhost:8000" if DEBUG else "https://lyrics.imicomweb.com"
 
@@ -46,6 +44,7 @@ MIDDLEWARE = [
     'subekashi.middleware.cache.CacheControlMiddleware',
     'subekashi.middleware.rate_limit.RatelimitMiddleware',
     'subekashi.middleware.normalize_post_middleware.NormalizePostDataMiddleware',
+    'subekashi.middleware.maintenance.MaintenanceMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'

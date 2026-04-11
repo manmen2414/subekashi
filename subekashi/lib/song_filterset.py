@@ -1,5 +1,6 @@
 import django_filters
 from django.core.exceptions import ValidationError
+from django.db.models import Subquery
 from subekashi.models import Song
 from subekashi.lib.query_filters import (
     filter_by_keyword,
@@ -10,7 +11,12 @@ from subekashi.lib.query_filters import (
     filter_by_lack,
 )
 from subekashi.lib.url import clean_url
-from subekashi.lib.query_utils import has_view_filter_or_sort, has_like_filter_or_sort
+from subekashi.lib.query_utils import has_view_filter_or_sort, has_like_filter_or_sort, has_upload_time_sort
+
+# URLパラメータのソートフィールド名 → Django ORM のフィールド名マッピング
+AUTHOR_SORT_MAP = {'author': 'authors__name', '-author': '-authors__name'}
+# URLパラメータ値をDjango ORM向けに変換する必要があるソートのマッピング
+DISTINCT_SORT_MAP = {'random': '?', **AUTHOR_SORT_MAP}
 
 
 def validate_positive_integer(value):
@@ -94,26 +100,21 @@ class SongFilter(django_filters.FilterSet):
     upload_time_lte = django_filters.DateTimeFilter(field_name='upload_time', lookup_expr='lte')
 
     # 真偽値フィルタ
-    issubeana = django_filters.BooleanFilter()
-    isjoke = django_filters.BooleanFilter()
-    isdraft = django_filters.BooleanFilter()
-    isoriginal = django_filters.BooleanFilter()
-    isinst = django_filters.BooleanFilter()
-    isdeleted = django_filters.BooleanFilter()
+    is_subeana = django_filters.BooleanFilter()
+    is_joke = django_filters.BooleanFilter()
+    is_draft = django_filters.BooleanFilter()
+    is_original = django_filters.BooleanFilter()
+    is_inst = django_filters.BooleanFilter()
+    is_deleted = django_filters.BooleanFilter()
+    is_limited = django_filters.BooleanFilter()
 
     # カスタムフィルタ
     keyword = django_filters.CharFilter(
         method='filter_keyword',
         validators=[validate_max_length(500)]
     )
-    imitate = django_filters.CharFilter(
-        method='filter_imitate',
-        validators=[validate_max_length(10000)]
-    )
-    imitated = django_filters.CharFilter(
-        method='filter_imitated',
-        validators=[validate_max_length(10000)]
-    )
+    imitate = django_filters.NumberFilter(method='filter_imitate')
+    imitated = django_filters.NumberFilter(method='filter_imitated')
     guesser = django_filters.CharFilter(
         method='filter_guesser',
         validators=[validate_max_length(500)]
@@ -122,7 +123,7 @@ class SongFilter(django_filters.FilterSet):
         method='filter_mediatypes',
         validators=[validate_max_length(100)]
     )
-    islack = django_filters.BooleanFilter(method='filter_islack')
+    is_lack = django_filters.BooleanFilter(method='filter_is_lack')
 
     # ソート (randomをサポートするためCharFilterを使用)
     sort = django_filters.CharFilter(
@@ -136,13 +137,12 @@ class SongFilter(django_filters.FilterSet):
 
     def filter_keyword(self, queryset, name, value):
         """複数フィールドにわたるキーワード検索"""
-        value = clean_url(value)
         return queryset.filter(filter_by_keyword(value))
 
     def filter_url(self, queryset, name, value):
-        """URLフィールドによるフィルタ（clean_urlを適用）"""
+        """SongLinkテーブルのURLによるフィルタ（clean_urlを適用し部分一致）"""
         value = clean_url(value)
-        return queryset.filter(url__icontains=value)
+        return queryset.filter(links__url__icontains=value)
 
     def filter_imitate(self, queryset, name, value):
         """imitateフィールドによるフィルタ（カンマ区切りリストをサポート）"""
@@ -160,10 +160,10 @@ class SongFilter(django_filters.FilterSet):
         """正規表現を使用したメディアタイプによるフィルタ"""
         return queryset.filter(filter_by_mediatypes(value))
 
-    def filter_islack(self, queryset, name, value):
+    def filter_is_lack(self, queryset, name, value):
         """不完全な曲をフィルタ"""
         if value:
-            return queryset.filter(filter_by_lack)
+            return queryset.filter(filter_by_lack())
         return queryset
 
     def filter_sort(self, queryset, name, value):
@@ -186,15 +186,14 @@ class SongFilter(django_filters.FilterSet):
             'post_time', '-post_time',
         }
 
-        # authorソートをauthors__nameに変換
-        if value == 'author':
-            value = 'authors__name'
-        elif value == '-author':
-            value = '-authors__name'
-
-        # バリデーション
+        # バリデーションはフィールド名変換より前に行う必要がある。
+        # 変換後の 'authors__name' は allowed_fields に含まれないため、
+        # 変換後に検証すると正当な 'author' 指定が ValidationError になる。
         if value not in allowed_fields:
             raise ValidationError(f'許可されていないソートフィールドです: {value}')
+
+        # URLパラメータのフィールド名をDjangoのORM向けに変換
+        value = AUTHOR_SORT_MAP.get(value, value)
 
         return queryset.order_by(value)
 
@@ -208,7 +207,7 @@ class SongFilter(django_filters.FilterSet):
 
         # YouTube関連のパラメータが存在するかチェック
         YOUTUBE_ITEMS = ['view', 'like', 'upload_time']
-        YOUTUBE_SORT = ['upload_time', '-upload_time', 'view', '-view', 'like', '-like']
+        YOUTUBE_SORT = ['view', '-view', 'like', '-like']
 
         youtube_filters = [f'{item}_gte' for item in YOUTUBE_ITEMS] + \
                           [f'{item}_lte' for item in YOUTUBE_ITEMS]
@@ -217,7 +216,13 @@ class SongFilter(django_filters.FilterSet):
         has_youtube_filter = any(key in self.data for key in youtube_filters)
 
         # YouTube関連だがmediatypesが指定されていない場合、YouTubeフィルタを追加
-        if (has_youtube_sort or has_youtube_filter) and 'mediatypes' not in self.data:
+        auto_youtube_applied = (has_youtube_sort or has_youtube_filter) and 'mediatypes' not in self.data
+        if auto_youtube_applied:
+            queryset = queryset.filter(filter_by_mediatypes('youtube'))
+
+        # upload_timeソートがある場合、mediatypes=youtubeを明示的に適用
+        upload_time_youtube_applied = has_upload_time_sort(self.data) and 'mediatypes' not in self.data
+        if upload_time_youtube_applied:
             queryset = queryset.filter(filter_by_mediatypes('youtube'))
 
         # view関連のフィルタまたはソートがある場合、view >= 1 を適用
@@ -228,8 +233,17 @@ class SongFilter(django_filters.FilterSet):
         if has_like_filter_or_sort(self.data):
             queryset = queryset.filter(like__gte=1)
 
-        # authors__nameを検索するフィルタ使用時にdistinct()を適用
-        if any(key in self.data for key in ['author', 'author_exact', 'keyword', 'guesser']):
-            queryset = queryset.distinct()
+        # フィルタ使用時、またはrandom/authorソート時にdistinct()を適用
+        # auto_youtube_applied / upload_time_youtube_applied の場合も links JOIN による重複が発生するため distinct が必要
+        NEED_DISTINCT_KEY_LIST = ['author', 'author_exact', 'keyword', 'guesser', 'is_lack', 'url', 'mediatypes', 'imitate', 'imitated']
+        NEED_DISTINCT_SORT_LIST = ['random', 'author', '-author']
+        if any(key in self.data for key in NEED_DISTINCT_KEY_LIST) or (self.data.get('sort') in NEED_DISTINCT_SORT_LIST) or auto_youtube_applied or upload_time_youtube_applied:
+            ids = queryset.values('id').distinct()
+            # Song.objects.filter(...) で新規 queryset を作るため、song_search.py で設定した
+            # prefetch_related は引き継がれない。ここで明示的に再設定する。
+            queryset = Song.objects.prefetch_related('links', 'authors').filter(id__in=Subquery(ids))
+            sort = self.data.get('sort')
+            if sort:
+                queryset = queryset.order_by(DISTINCT_SORT_MAP.get(sort, sort))
 
         return queryset

@@ -74,8 +74,8 @@ function restoreFormValuesFromCookies() {
 async function saveCookieToBackend(name, value) {
     const paramMap = {
         "isdetail": "isdetail",
-        "songrange": "issubeana",
-        "jokerange": "isjoke",
+        "songrange": "is_subeana",
+        "jokerange": "is_joke",
         "sort": "sort"
     };
     const param = paramMap[name];
@@ -129,21 +129,20 @@ function categoryClick(song) {
     renderSearch();
 }
 
-// TODO ?songrange=で直接GETできるようにする
 function songrangeToQuery(songrange) {
     if (songrange == "subeana") {
-        return { "issubeana": true };
+        return { "is_subeana": true };
     } else if (songrange == "xx") {
-        return { "issubeana": false };
+        return { "is_subeana": false };
     };
     return {};
 }
 
 function isjokeToQuery(isjoke) {
     if (isjoke == "only") {
-        return { "isjoke": true };
+        return { "is_joke": true };
     } else if (isjoke == "off") {
-        return { "isjoke": false };
+        return { "is_joke": false };
     };
     return {};
 }
@@ -218,7 +217,7 @@ function renderSearch() {
         songCardsEle.removeChild(songCardsEle.firstChild);
     }
 
-    loadingEle = stringToHTML(`<img src="${baseURL()}/static/subekashi/image/loading.gif" id="loading" alt='loading'></img>`);
+    loadingEle = stringToHTML(`<span class="loading"></span>`);
     songCardsEle.appendChild(loadingEle);
 
     SearchController = new AbortController();
@@ -227,6 +226,7 @@ function renderSearch() {
 
 async function getsongCards(query) {
     try {
+        query["is_limited"] = "False";
         const songCards = await exponentialBackoff(`html/song_cards${toQueryString(query)}`, "search", renderSearch);
         return songCards;
     } catch(error) {
@@ -241,11 +241,11 @@ async function search(signal, page) {
     const songCards = await getsongCards(query);
 
     if (page == 1) {
-        document.getElementById("loading").remove();
+        loadingEle.remove();
     }
 
     if (!songCards) {
-        loadingEle = stringToHTML(`<img src="${baseURL()}/static/subekashi/image/loading.gif" id="loading" alt='loading'></img>`);
+        loadingEle = stringToHTML(`<span class="loading"></span>`);
         songCardsEle.appendChild(loadingEle);
         return;
     }
@@ -281,3 +281,30 @@ function paging() {
     document.getElementById("next-page-loading").remove();
     search(SearchController.signal, page);
 }
+
+// 「結果を表示」ボタンの表示/非表示制御
+(function() {
+    const detailsEle = document.getElementById("isdetail");
+    const container = document.getElementById("scroll-to-results-container");
+    if (!detailsEle || !container) return;
+
+    let isIntersecting = false;
+
+    function updateButtonVisibility() {
+        container.classList.toggle('visible', detailsEle.open && isIntersecting);
+    }
+
+    const intersectionObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            isIntersecting = entry.isIntersecting;
+            updateButtonVisibility();
+        });
+    });
+    intersectionObserver.observe(detailsEle);
+
+    detailsEle.addEventListener('toggle', updateButtonVisibility);
+
+    document.getElementById("scroll-to-results-btn").addEventListener('click', () => {
+        document.getElementById("song-cards").scrollIntoView({ behavior: 'auto' });
+    });
+})();
