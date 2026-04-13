@@ -56,6 +56,9 @@ function loadAnimeJS() {
 }
 
 async function special() {
+  if (!!specialsong) {
+    location.reload();
+  }
   const tickSetter = dev();
   const songAudio = new SongAudio(SONG_URL, "youtube");
   const song = new SpecialSong(BPM, 4, songAudio);
@@ -89,6 +92,11 @@ async function special() {
   timeline.call(() => t(), nowTime);
   timeline.sync(scrollTimer, nowTime);
   nowTime += scrollTime;
+  // 画面を覆うエレメント
+  const darkElement = generateScreenElement("#000");
+  darkElement.style.zIndex = "-10";
+  const lightElement = generateScreenElement("#ccc");
+
   // 要素非表示
   const elementHideBehavior = {
     display: { from: "unset", to: "none" },
@@ -99,16 +107,18 @@ async function special() {
   timeline.add("#footer-wrapper", elementHideBehavior, nowTime);
   nowTime += 1800;
   // 開始
-  function addLyric(id, beats = 12) {
+  function addLyric(id, beats = 12, customSettings = {}) {
     timeline.add(
       `#generatedl-${id}`,
       {
         ...elementBottomToUpBehavior,
         duration: millsecondsForBeat * beats,
+        ...customSettings,
       },
       nowTime,
     );
   }
+
   const elementBottomToUpBehavior = {
     bottom: {
       from: `-${FONTSIZE}`,
@@ -116,6 +126,21 @@ async function special() {
     },
     ease: "linear",
   };
+  /**
+   * @param {number} id
+   * @param {boolean} iseased
+   */
+  function makeLyricTransparent(id, iseased = false) {
+    timeline.add(
+      `#generatedl-${id}`,
+      {
+        opacity: { from: 1, to: 0 },
+        duration: iseased ? millsecondsForBeat * 0.5 : 1,
+        ease: "out",
+      },
+      nowTime,
+    );
+  }
   timeline.call(() => t(), nowTime);
   // ああ、意味はなくても
   addLyric(0);
@@ -159,6 +184,16 @@ async function special() {
   nowTime += millsecondsForBeat * 1;
   nowTime += millsecondsForBeat * 8;
   nowTime += millsecondsForBeat * 32;
+  const stopBtn = document.querySelector(".fas.fa-stop")?.parentElement;
+  if (!!stopBtn)
+    timeline.add(
+      stopBtn,
+      {
+        display: { from: "flex", to: "none" },
+        duration: 1,
+      },
+      nowTime,
+    );
   // 何にも出来ない...
   (() => {
     let nowTimeForSub = nowTime;
@@ -230,10 +265,20 @@ async function special() {
   addLyric(25);
   nowTime += millsecondsForBeat * 3;
   nowTime += millsecondsForBeat * 1;
+
+  // DEV_SETSEEKAT = nowTime; // これをスライドするとそその位置に飛ぶ
   addLyric(26);
   nowTime += millsecondsForBeat * 3;
   nowTime += millsecondsForBeat * 27;
   // 落としていたキーホルダー、
+  timeline.add(
+    darkElement,
+    {
+      opacity: { from: 0, to: 1 },
+      duration: millsecondsForBeat * 24,
+    },
+    nowTime,
+  );
   addLyric(27, 16);
   nowTime += millsecondsForBeat * 1;
   nowTime += millsecondsForBeat * 7;
@@ -243,18 +288,55 @@ async function special() {
   nowTime += millsecondsForBeat * 7;
   addLyric(30, 16);
   nowTime += millsecondsForBeat * 1;
+  // ラスサビ前フェード
+  timeline.add(
+    lightElement,
+    {
+      opacity: { from: 0, to: 1 },
+      duration: millsecondsForBeat * 11.5,
+      ease: "in(2)",
+    },
+    nowTime,
+  );
   addLyric(31, 16);
   addLyric(32, 16);
   nowTime += millsecondsForBeat * 7;
-  addLyric(33, 12);
-  addLyric(34, 12);
+  // 中間で止まる歌詞
+  addLyric(33, 5, {
+    bottom: {
+      from: `-${FONTSIZE}`,
+      to: `${innerHeight / 2}px`,
+    },
+  });
+  addLyric(34, 5, {
+    bottom: {
+      from: `-${FONTSIZE}`,
+      to: `${innerHeight / 2}px`,
+    },
+  });
   nowTime += millsecondsForBeat * 1;
-  //DEV_SETSEEKAT = nowTime; // これをスライドするとそその位置に飛ぶ
-  nowTime += millsecondsForBeat * 3;
   nowTime += millsecondsForBeat * 4;
+  // 上側にまだ残ってる歌詞を消去
+  makeLyricTransparent(28);
+  makeLyricTransparent(29);
+  makeLyricTransparent(30);
+  makeLyricTransparent(31);
+  makeLyricTransparent(32);
+  timeline.add(
+    lightElement,
+    {
+      opacity: { from: 1, to: 0 },
+      duration: millsecondsForBeat * 0.5,
+      ease: "out",
+    },
+    nowTime,
+  );
+  nowTime += millsecondsForBeat * 3;
   // 取り零した笑顔と、
   addLyric(35);
   nowTime += millsecondsForBeat * 1;
+  makeLyricTransparent(33, true);
+  makeLyricTransparent(34, true);
   nowTime += millsecondsForBeat * 6;
   addLyric(36);
   nowTime += millsecondsForBeat * 1;
@@ -270,7 +352,80 @@ async function special() {
   addLyric(42);
   addLyric(43);
   nowTime += millsecondsForBeat * 1;
+  nowTime += millsecondsForBeat * 4;
+  // 白く
+  timeline.add(
+    lightElement,
+    {
+      opacity: { from: 0, to: 1 },
+      duration: millsecondsForBeat * 4,
+    },
+    nowTime,
+  );
+  nowTime += millsecondsForBeat * 4;
+  // トースト表示のオフセット
+  nowTime -= 300;
+  timeline.call(() => showToast("error", "大変申し訳ありませんが、"), nowTime);
   nowTime += millsecondsForBeat * 8;
+  timeline.call(
+    () => showToast("error", "この■■はアップロード者が削除されたが故、"),
+    nowTime,
+  );
+  nowTime += millsecondsForBeat * 8;
+  timeline.call(() => showToast("error", "全て■■の所為でした。"), nowTime);
+  nowTime += millsecondsForBeat * 8;
+  timeline.call(
+    () => showToast("error", "またの御アクセスをお待ちしております。"),
+    nowTime,
+  );
+  nowTime += millsecondsForBeat * 4;
+  nowTime += 300;
+  // 白の消滅
+  timeline.add(
+    lightElement,
+    {
+      zIndex: { from: 100, to: -10 },
+      opacity: { from: 1, to: 0 },
+      duration: 1,
+    },
+    nowTime,
+  );
+  timeline.call(() => {
+    for (const elem of [...document.getElementById("toast-container").children])
+      elem.remove();
+  }, nowTime);
+  nowTime += millsecondsForBeat * 4;
+  // 元の状態を復元
+  timeline.add(
+    darkElement,
+    {
+      opacity: { from: 1, to: 0 },
+      duration: millsecondsForBeat * 2,
+    },
+    nowTime,
+  );
+  timeline.call(() => {
+    document.getElementById("lyrics").innerHTML = "この■■は削除されました。"
+    document.title = document.title.replace("■■","再生")
+    document.querySelector("#song-info td:nth-child(2)").innerHTML = "再生";
+  }, nowTime);
+
+  const elementShowBehaviorEase = {
+    opacity: { from: "0", to: "1" },
+    duration: millsecondsForBeat * 2,
+  };
+  timeline.add("section", elementShowBehaviorEase, nowTime);
+  timeline.add("header", elementShowBehaviorEase, nowTime);
+  timeline.add("#footer-wrapper", elementShowBehaviorEase, nowTime);
+  const elementShowBehavior = {
+    display: { from: "none", to: "revert" },
+    duration: 1,
+  };
+  timeline.add("section", elementShowBehavior, nowTime);
+  timeline.add("header", elementShowBehavior, nowTime);
+  timeline.add("#footer-wrapper", elementShowBehavior, nowTime);
+  nowTime += millsecondsForBeat * 2;
+  
 
   // timeline.add("#lyrics", { opacity: 0, duration: 500 }, 5000);
 
@@ -320,7 +475,6 @@ function setupLyric() {
   lyric.innerHTML = START_LYRIC_TEXT;
   lyric.style.fontSize = "3vw";
   lyric.style.whiteSpace = "nowrap";
-
 }
 
 function dev() {
@@ -418,6 +572,23 @@ function generateLyricText(str) {
   html = html.replace(/\(([^\)]+)\)/g, `<span style="opacity:0">$1</span>`);
   element.innerHTML = html;
   return element;
+}
+
+/**
+ * @param {string} color
+ */
+function generateScreenElement(color) {
+  const elem = document.createElement("div");
+  elem.style.backgroundColor = color;
+  elem.style.position = "fixed";
+  elem.style.top = "0px";
+  elem.style.left = "0px";
+  elem.style.width = "100vw";
+  elem.style.height = "100vh";
+  elem.style.opacity = "0";
+  elem.style.zIndex = "10";
+  document.body.appendChild(elem);
+  return elem;
 }
 
 /**@param {string} text */
